@@ -1483,6 +1483,78 @@ def construir_df_cars_unicos(df_a, df_r, df_e):
     return df_cars
 
 
+def construir_df_consolidado(df_a, df_r, df_e):
+    """Constrói DataFrame consolidado com TODAS as colunas dos 3 escopos.
+
+    Cada coluna recebe sufixo (Análise), (Retificação) ou (Elegibilidade)
+    para distinguir colunas de mesmo nome entre escopos.
+    """
+    col_a = "Nº DO CAR"
+    col_r = "Código do CAR"
+    col_e = "Nº DO CAR"
+    col_unif = "Nº DO CAR"
+
+    def _cars_validos(series):
+        return set(x for x in series.dropna().unique() if str(x).strip())
+
+    cars_a = _cars_validos(df_a[col_a]) if col_a in df_a.columns else set()
+    cars_r = _cars_validos(df_r[col_r]) if col_r in df_r.columns else set()
+    cars_e = _cars_validos(df_e[col_e]) if col_e in df_e.columns else set()
+
+    # ── Análise: maior ciclo por CAR ──
+    df_a_u = df_a[df_a[col_a].notna() & (df_a[col_a].astype(str).str.strip() != "")].copy()
+    if "Ciclo de análise" in df_a_u.columns:
+        df_a_u["Ciclo de análise"] = pd.to_numeric(df_a_u["Ciclo de análise"], errors="coerce")
+        df_a_u = df_a_u.sort_values([col_a, "Ciclo de análise"]).drop_duplicates(subset=col_a, keep="last")
+    else:
+        df_a_u = df_a_u.drop_duplicates(subset=col_a, keep="last")
+
+    # ── Retificação: último por CAR ──
+    if col_r in df_r.columns:
+        df_r_u = df_r[df_r[col_r].notna() & (df_r[col_r].astype(str).str.strip() != "")].copy()
+        df_r_u = df_r_u.drop_duplicates(subset=col_r, keep="last")
+        df_r_u = df_r_u.rename(columns={col_r: col_unif})
+    else:
+        df_r_u = pd.DataFrame(columns=[col_unif])
+
+    # ── Elegibilidade: último por CAR ──
+    if col_e in df_e.columns:
+        df_e_u = df_e[df_e[col_e].notna() & (df_e[col_e].astype(str).str.strip() != "")].copy()
+        df_e_u = df_e_u.drop_duplicates(subset=col_e, keep="last")
+    else:
+        df_e_u = pd.DataFrame(columns=[col_unif])
+
+    # Limpar colunas Unnamed
+    df_a_u = df_a_u.loc[:, ~df_a_u.columns.str.startswith("Unnamed")]
+    df_r_u = df_r_u.loc[:, ~df_r_u.columns.str.startswith("Unnamed")]
+    df_e_u = df_e_u.loc[:, ~df_e_u.columns.str.startswith("Unnamed")]
+
+    # ── Adicionar sufixos a TODAS as colunas (exceto CAR) ──
+    df_a_sufx = df_a_u.rename(columns={c: f"{c} (Análise)" for c in df_a_u.columns if c != col_unif})
+    df_r_sufx = df_r_u.rename(columns={c: f"{c} (Retificação)" for c in df_r_u.columns if c != col_unif})
+    df_e_sufx = df_e_u.rename(columns={c: f"{c} (Elegibilidade)" for c in df_e_u.columns if c != col_unif})
+
+    # ── Base + merges ──
+    all_cars = sorted(cars_a | cars_r | cars_e)
+    df_consol = pd.DataFrame({col_unif: all_cars})
+    df_consol = df_consol.merge(df_a_sufx, on=col_unif, how="left")
+    df_consol = df_consol.merge(df_r_sufx, on=col_unif, how="left")
+    df_consol = df_consol.merge(df_e_sufx, on=col_unif, how="left")
+
+    # ── Escopo + Último Ciclo ──
+    df_consol.insert(1, "Escopo", df_consol[col_unif].apply(
+        lambda x: _classificar_imovel(str(x), cars_a, cars_r, cars_e)
+    ))
+    if "Ciclo de análise" in df_a.columns:
+        _ciclo = pd.to_numeric(df_a["Ciclo de análise"], errors="coerce")
+        _max = df_a.assign(_c=_ciclo).groupby(col_a)["_c"].max().to_dict()
+        df_consol.insert(2, "Último Ciclo", df_consol[col_unif].map(_max))
+
+    # Remover colunas 100% vazias
+    df_consol = df_consol.dropna(axis=1, how="all")
+
+    return df_consol
+
 def render_cars(df_a, df_r, df_e):
     """§C — Visão consolidada de CARs únicos com escopo e condição final."""
 
@@ -1577,6 +1649,32 @@ def render_cars(df_a, df_r, df_e):
     )
     fig.update_traces(textposition="outside")
     st.plotly_chart(fig, use_container_width=True)
+
+    # ── Exportar DataFrame Consolidado ──
+    st.markdown("---")
+    st.markdown("#### 📦 DataFrame Consolidado")
+    st.caption(
+        "Todas as colunas dos 3 escopos reunidas em um único DataFrame. "
+        "Cada coluna recebe sufixo (Análise), (Retificação) ou (Elegibilidade) "
+        "para identificar a origem."
+    )
+
+    with st.spinner("Construindo DataFrame consolidado..."):
+        df_consol = construir_df_consolidado(df_a, df_r, df_e)
+
+    st.success(f"✅ {fmt_int(len(df_consol))} CARs × {fmt_int(len(df_consol.columns))} colunas")
+
+    buf_consol = io.BytesIO()
+    with pd.ExcelWriter(buf_consol, engine="xlsxwriter") as writer:
+        df_consol.to_excel(writer, sheet_name="CARs Consolidado", index=False)
+
+    st.download_button(
+        label="⬇️ Baixar Consolidado (.xlsx)",
+        data=buf_consol.getvalue(),
+        file_name=f"cars_consolidado_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.document",
+        key="dl_consolidado",
+    )
 
 
 # ════════════════════════════════════════════════════════════════
