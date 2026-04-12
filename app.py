@@ -220,6 +220,13 @@ def aplicar_filtros(df_a, df_r, df_e, filtros):
         if "Município" in fr.columns: fr = fr[fr["Município"].isin(muns)]
         if "Município" in fe.columns: fe = fe[fe["Município"].isin(muns)]
 
+    # Lote
+    if filtros.get("lotes"):
+        lotes = filtros["lotes"]
+        if "LOTE" in fa.columns: fa = fa[fa["LOTE"].isin(lotes)]
+        if "Lote" in fr.columns: fr = fr[fr["Lote"].isin(lotes)]
+        if "LOTE" in fe.columns: fe = fe[fe["LOTE"].isin(lotes)]
+
     # Status (condição normalizada)
     if filtros.get("status") and "Condição_norm" in fa.columns:
         fa = fa[fa["Condição_norm"].isin(filtros["status"])]
@@ -623,7 +630,6 @@ def render_tatico(df_a, df_r, df_e, kpis):
             col_ext = "Técnico Análise Externa"
             col_int = "Técnico Análise Interna"
             if col_ext in df_a.columns and col_int in df_a.columns:
-                st.caption(f"Ext notna: {df_a[col_ext].notna().sum()} | dtype: {df_a[col_ext].dtype} | sample: {df_a[col_ext].head(5).tolist()}")
                 ext = df_a[col_ext].dropna().value_counts()
                 inter = df_a[col_int].dropna().value_counts()
                 tecnicos_todos = sorted(set(ext.index) | set(inter.index))
@@ -1108,6 +1114,12 @@ def main():
             municipios_disp = sorted(df_a_raw["Município"].dropna().unique())
             filtros["municipios"] = st.multiselect("Município", municipios_disp,
                                                     help="Filtre por um ou mais municípios")
+
+        # Lote
+        if "LOTE" in df_a_raw.columns:
+            lotes_disp = sorted(df_a_raw["LOTE"].dropna().unique())
+            filtros["lotes"] = st.multiselect("Lote", lotes_disp,
+                                               help="Filtre por um ou mais lotes")
 
         # Status
         if "Condição_norm" in df_a_raw.columns:
