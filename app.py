@@ -508,14 +508,18 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 # §7  MODO TÁTICO
 # ════════════════════════════════════════════════════════════════
 
-def _alerta_divergencia(total_grafico, total_df, label="registros"):
-    """Exibe alerta se o total do gráfico diverge do total do DataFrame."""
+def _titulo_grafico(titulo, total_grafico, total_df):
+    """Exibe título do gráfico com ícone de alerta inline se houver divergência."""
     diff = total_df - total_grafico
     if diff != 0:
-        st.warning(
-            f"⚠️ Este gráfico mostra **{fmt_int(total_grafico)}** de **{fmt_int(total_df)}** {label} "
-            f"(**{fmt_int(diff)}** sem dados nesta coluna — possível inconsistência no preenchimento)."
+        tooltip = (f"{fmt_int(total_grafico)} de {fmt_int(total_df)} registros "
+                   f"({fmt_int(diff)} sem dados nesta coluna)")
+        st.markdown(
+            f'##### {titulo} <span title="{tooltip}" style="cursor:help; font-size:0.85em;">⚠️</span>',
+            unsafe_allow_html=True,
         )
+    else:
+        st.markdown(f"##### {titulo}")
 
 
 def render_tatico(df_a, df_r, df_e, kpis):
@@ -537,12 +541,11 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Ciclos
         with col1:
-            st.markdown("##### Ciclos de Análise")
             if "Ciclo de análise" in df_a.columns:
                 cd = df_a["Ciclo de análise"].dropna()
                 cd = cd[cd.isin([1, 2, 3, 4])]
                 cd_counts = cd.value_counts().sort_index()
-                _alerta_divergencia(int(cd_counts.sum()), total_a)
+                _titulo_grafico("Ciclos de Análise", int(cd_counts.sum()), total_a)
                 cores_c = [COR["verde_claro"], COR["amarelo"], COR["laranja"], COR["vermelho"]]
                 fig_c = go.Figure(go.Bar(
                     x=[f"{int(c)}º" for c in cd_counts.index], y=cd_counts.values,
@@ -555,10 +558,9 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Complexidade
         with col2:
-            st.markdown("##### Grau de Complexidade")
             if "Grau de Complexidade" in df_a.columns:
                 comp = df_a["Grau de Complexidade"].dropna().value_counts()
-                _alerta_divergencia(int(comp.sum()), total_a)
+                _titulo_grafico("Grau de Complexidade", int(comp.sum()), total_a)
                 cores_comp = {"Verde": "#4CAF50", "Vermelho": "#F44336", "Amarelo": "#FFC107"}
                 fig_comp = go.Figure(go.Bar(
                     x=comp.index, y=comp.values,
@@ -570,10 +572,9 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Tipo de imóvel
         with col3:
-            st.markdown("##### Tipo de Imóvel")
             if "Tipo de imóvel" in df_a.columns:
                 tipo = df_a["Tipo de imóvel"].value_counts()
-                _alerta_divergencia(int(tipo.sum()), total_a)
+                _titulo_grafico("Tipo de Imóvel", int(tipo.sum()), total_a)
                 tipo = tipo[tipo.index.isin(["IRU", "AST"])]
                 fig_tipo = go.Figure(go.Bar(
                     x=["IRU", "AST"], y=tipo.values,
@@ -586,11 +587,10 @@ def render_tatico(df_a, df_r, df_e, kpis):
         # Reserva Legal + Desmatamento
         col_rl, col_desm = st.columns(2)
         with col_rl:
-            st.markdown("##### Reserva Legal (Ativo / Passivo)")
             rl_col = "Tem Ativo ou Passivo de RL? (baseado no uso do solo)"
             if rl_col in df_a.columns:
                 rl = df_a[rl_col].value_counts()
-                _alerta_divergencia(int(rl.sum()), total_a)
+                _titulo_grafico("Reserva Legal (Ativo / Passivo)", int(rl.sum()), total_a)
                 rl = rl[rl.index.isin(["Ativo", "Passivo", "OK", "Não vetorizada"])]
                 cores_rl = {"Ativo": COR["verde_claro"], "Passivo": COR["vermelho"],
                             "OK": COR["azul"], "Não vetorizada": COR["cinza"]}
@@ -601,13 +601,12 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 st.plotly_chart(fig_rl, width="stretch")
 
         with col_desm:
-            st.markdown("##### Desmatamento Detectado")
             desm_cols = ["Desmatamento entre 2008 e 2018", "Desmatamento após 2018"]
             if all(c in df_a.columns for c in desm_cols):
                 d1 = df_a[desm_cols[0]].value_counts()
                 d2 = df_a[desm_cols[1]].value_counts()
-                _alerta_divergencia(int(d1.sum()), total_a)
-                _alerta_divergencia(int(d2.sum()), total_a)
+                menor = min(int(d1.sum()), int(d2.sum()))
+                _titulo_grafico("Desmatamento Detectado", menor, total_a)
                 d1 = d1[d1.index.isin(["Sim", "Não"])]
                 d2 = d2[d2.index.isin(["Sim", "Não"])]
                 fig_d = make_subplots(1, 2, specs=[[{"type": "domain"}, {"type": "domain"}]],
@@ -634,7 +633,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         if visao_tecnico == "Técnico Vinculado" and "Técnico Vinculado" in df_a.columns:
             prod_all = df_a["Técnico Vinculado"].dropna()
-            _alerta_divergencia(len(prod_all), total_a)
+            _titulo_grafico("Técnico Vinculado", len(prod_all), total_a)
             prod = prod_all.value_counts().head(15)
             df_prod = pd.DataFrame({"Técnico": prod.index, "Análises": prod.values})
             df_prod["label"] = df_prod["Análises"].apply(fmt_int)
@@ -702,10 +701,9 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         cr1, cr2 = st.columns(2)
         with cr1:
-            st.markdown("##### Status da Retificação")
             if "Status de Retificação" in df_r.columns:
                 sr = df_r["Status de Retificação"].value_counts()
-                _alerta_divergencia(int(sr.sum()), total_r)
+                _titulo_grafico("Status da Retificação", int(sr.sum()), total_r)
                 cores_sr = {"Retificado": COR["verde_claro"], "Finalizado": COR["verde_escuro"],
                             "Inscrito": COR["amarelo"]}
                 fig_sr = go.Figure(go.Bar(
@@ -717,10 +715,9 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 st.plotly_chart(fig_sr, width="stretch")
 
         with cr2:
-            st.markdown("##### Tipo de Atendimento")
             if "Tipo de Atendimento" in df_r.columns:
                 atend = df_r["Tipo de Atendimento"].dropna().value_counts()
-                _alerta_divergencia(int(atend.sum()), total_r)
+                _titulo_grafico("Tipo de Atendimento", int(atend.sum()), total_r)
                 fig_at = px.bar(x=atend.values, y=atend.index, orientation="h",
                                 color_discrete_sequence=[COR["laranja"]], text=atend.values)
                 fig_at.update_traces(textposition="auto")
@@ -729,10 +726,9 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 st.plotly_chart(fig_at, width="stretch")
 
         # Fase do processo
-        st.markdown("##### Fase do Processo (SISNAMA)")
         if "Fase do Processo (SISNAMA)" in df_r.columns:
             fase = df_r["Fase do Processo (SISNAMA)"].value_counts()
-            _alerta_divergencia(int(fase.sum()), total_r)
+            _titulo_grafico("Fase do Processo (SISNAMA)", int(fase.sum()), total_r)
             fig_fase = px.bar(x=fase.values, y=fase.index, orientation="h",
                               color_discrete_sequence=[COR["azul"]], text=fase.values)
             fig_fase.update_traces(textposition="auto")
@@ -755,7 +751,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
         total_e = len(df_e)
 
         # Critérios
-        st.markdown("##### Análise por Critério de Elegibilidade")
+        st.markdown("##### Critérios de Elegibilidade")
         criterios = {
             "MF imóvel": "Módulo Fiscal", "Soma - MF dos Imóveis": "Soma MF",
             "cnfp": "CNFP", "uc": "Unid. Conservação", "quilombola": "Quilombola",
@@ -772,8 +768,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
                                   "Total": el + ne, "pct": ne / max(len(df_e), 1) * 100})
         if crit_data:
             total_crit_min = min(d["Total"] for d in crit_data)
-            if total_crit_min < total_e:
-                _alerta_divergencia(total_crit_min, total_e)
+            _titulo_grafico("Análise por Critério", total_crit_min, total_e)
             df_crit = pd.DataFrame(crit_data).sort_values("pct")
             fig_crit = go.Figure()
             fig_crit.add_trace(go.Bar(y=df_crit["Critério"], x=df_crit["Elegível"],
@@ -798,10 +793,9 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 st.plotly_chart(fig_uf, width="stretch")
 
         with ce2:
-            st.markdown("##### Fitofisionomia")
             if "fitofision" in df_e.columns:
                 fito = df_e["fitofision"].dropna().value_counts()
-                _alerta_divergencia(int(fito.sum()), total_e)
+                _titulo_grafico("Fitofisionomia", int(fito.sum()), total_e)
                 fig_fito = px.pie(values=fito.values, names=fito.index, hole=0.45,
                                   color_discrete_sequence=PALETA)
                 fig_fito.update_traces(textinfo="percent+value")
