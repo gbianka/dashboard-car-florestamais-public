@@ -1151,12 +1151,19 @@ def exportar_xlsx(df_a, df_r, df_e, kpis, filtros_ativos):
 
 def main():
     # ── Cabeçalho ──
-    st.markdown("""
+    import base64, pathlib
+    _logo_path = pathlib.Path(__file__).parent / "assets" / "img" / "logo_florestamais_transparente.svg"
+    if _logo_path.exists():
+        _logo_b64 = base64.b64encode(_logo_path.read_bytes()).decode()
+        _logo_src = f"data:image/svg+xml;base64,{_logo_b64}"
+    else:
+        _logo_src = "https://www.florestamaisamazonia.org.br/wp-content/themes/tupi-florestamais/assets/img/logo_floresta_mono.png"
+    st.markdown(f"""
     <div style="background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 50%, #1565C0 100%);
                 padding: 1.2rem 2rem; border-radius: 12px; margin-bottom: 1rem; font-family: Manrope, sans-serif;
                 display: flex; align-items: center; gap: 1.2rem;">
-        <img src="https://www.florestamaisamazonia.org.br/wp-content/themes/tupi-florestamais/assets/img/logo_floresta_mono.png"
-             alt="Floresta+ Amazônia" style="height: 60px; flex-shrink: 0; filter: brightness(1.1);">
+        <img src="{_logo_src}"
+             alt="Floresta+ Amazônia" style="height: 60px; flex-shrink: 0;">
         <div>
             <h1 style="color: white; margin: 0; font-size: 1.8rem; font-family: Manrope, sans-serif;">Dashboard — Projeto CAR / PRA</h1>
             <p style="color: rgba(255,255,255,0.85); margin: 0.3rem 0 0 0; font-size: 0.95rem; font-family: Manrope, sans-serif;">
