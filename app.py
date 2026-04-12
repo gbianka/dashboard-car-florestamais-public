@@ -1393,6 +1393,173 @@ def render_mapa(df_a, df_r, df_e):
 
 
 # ════════════════════════════════════════════════════════════════
+# §C  MÓDULO CARs — VISÃO CONSOLIDADA DE CARs ÚNICOS
+# ════════════════════════════════════════════════════════════════
+
+def construir_df_cars_unicos(df_a, df_r, df_e):
+    """Constrói DataFrame de CARs únicos cruzando os 3 escopos.
+
+    - Análise: prevalece o registro do maior ‘Ciclo de análise’.
+    - Retificação / Elegibilidade: último registro por CAR.
+    - Colunas: união das colunas únicas das 3 abas + Escopo.
+    """
+    col_a = "Nº DO CAR"
+    col_r = "Código do CAR"
+    col_e = "Nº DO CAR"
+    col_unif = "Nº DO CAR"
+
+    # Sets de CARs por escopo
+    cars_a = set(df_a[col_a].dropna().unique()) if col_a in df_a.columns else set()
+    cars_r = set(df_r[col_r].dropna().unique()) if col_r in df_r.columns else set()
+    cars_e = set(df_e[col_e].dropna().unique()) if col_e in df_e.columns else set()
+
+    # ── Análise: registro do maior ciclo ──
+    df_a_u = df_a.copy()
+    if "Ciclo de análise" in df_a_u.columns:
+        df_a_u["Ciclo de análise"] = pd.to_numeric(df_a_u["Ciclo de análise"], errors="coerce")
+        df_a_u = (df_a_u
+                  .sort_values([col_a, "Ciclo de análise"])
+                  .drop_duplicates(subset=col_a, keep="last"))
+    else:
+        df_a_u = df_a_u.drop_duplicates(subset=col_a, keep="last")
+
+    # ── Retificação: último registro por CAR, renomear coluna ──
+    if col_r in df_r.columns:
+        df_r_u = df_r.drop_duplicates(subset=col_r, keep="last").copy()
+        if col_r != col_unif:
+            df_r_u = df_r_u.rename(columns={col_r: col_unif})
+    else:
+        df_r_u = pd.DataFrame(columns=[col_unif])
+
+    # ── Elegibilidade: último registro por CAR ──
+    if col_e in df_e.columns:
+        df_e_u = df_e.drop_duplicates(subset=col_e, keep="last").copy()
+    else:
+        df_e_u = pd.DataFrame(columns=[col_unif])
+
+    # Limpar colunas “Unnamed”
+    df_a_u = df_a_u.loc[:, ~df_a_u.columns.str.startswith("Unnamed")]
+    df_r_u = df_r_u.loc[:, ~df_r_u.columns.str.startswith("Unnamed")]
+    df_e_u = df_e_u.loc[:, ~df_e_u.columns.str.startswith("Unnamed")]
+
+    # ── Base: todos os CARs únicos ──
+    all_cars = sorted(cars_a | cars_r | cars_e)
+    df_cars = pd.DataFrame({col_unif: all_cars})
+
+    # Merge Análise (todas as colunas)
+    df_cars = df_cars.merge(df_a_u, on=col_unif, how="left")
+
+    # Merge Retificação (apenas colunas exclusivas)
+    cols_r_novas = [c for c in df_r_u.columns if c not in df_cars.columns]
+    if cols_r_novas:
+        df_cars = df_cars.merge(df_r_u[[col_unif] + cols_r_novas], on=col_unif, how="left")
+
+    # Merge Elegibilidade (apenas colunas exclusivas)
+    cols_e_novas = [c for c in df_e_u.columns if c not in df_cars.columns]
+    if cols_e_novas:
+        df_cars = df_cars.merge(df_e_u[[col_unif] + cols_e_novas], on=col_unif, how="left")
+
+    # ── Escopo (segunda coluna) ──
+    df_cars.insert(1, "Escopo", df_cars[col_unif].apply(
+        lambda x: _classificar_imovel(str(x), cars_a, cars_r, cars_e)
+    ))
+
+    return df_cars
+
+
+def render_cars(df_a, df_r, df_e):
+    """§C — Visão consolidada de CARs únicos com escopo e condição final."""
+
+    st.markdown("### 🏷️ CARs Únicos — Visão Consolidada")
+    st.caption(
+        "Cada linha é um CAR único. Para CARs com múltiplos ciclos de análise, "
+        "prevalece o registro do ciclo mais alto. Colunas exclusivas de cada "
+        "escopo são incluídas automaticamente."
+    )
+
+    df_cars = construir_df_cars_unicos(df_a, df_r, df_e)
+
+    # ── KPIs ──
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("CARs Únicos", fmt_int(len(df_cars)))
+    c2.metric("Em Análise", fmt_int(len(df_cars[df_cars["Escopo"].str.contains("Análise")])))
+    c3.metric("Em Retificação", fmt_int(len(df_cars[df_cars["Escopo"].str.contains("Retificação")])))
+    c4.metric("Em Elegibilidade", fmt_int(len(df_cars[df_cars["Escopo"].str.contains("Elegibilidade")])))
+
+    # ── Filtros ──
+    _ORDEM_ESCOPO = [
+        "Apenas Análise", "Apenas Retificação", "Apenas Elegibilidade",
+        "Análise + Retificação", "Análise + Elegibilidade",
+        "Retificação + Elegibilidade", "Análise + Retificação + Elegibilidade",
+        "Fora do Escopo",
+    ]
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        escopo_sel = st.multiselect(
+            "Filtrar por Escopo:",
+            [e for e in _ORDEM_ESCOPO if e in df_cars["Escopo"].values],
+            help="Selecione um ou mais escopos",
+            key="cars_escopo_filter",
+        )
+    with col_f2:
+        busca_car = st.text_input(
+            "Buscar CAR:", placeholder="Ex: AM-1300060-...",
+            help="Filtre por código completo ou parcial",
+            key="cars_busca_car",
+        )
+
+    df_view = df_cars.copy()
+    if escopo_sel:
+        df_view = df_view[df_view["Escopo"].isin(escopo_sel)]
+    if busca_car:
+        df_view = df_view[df_view["Nº DO CAR"].astype(str).str.contains(busca_car, case=False, na=False)]
+
+    st.caption(f"Exibindo {fmt_int(len(df_view))} de {fmt_int(len(df_cars))} CARs")
+
+    # ── Seletor de colunas ──
+    all_cols = df_view.columns.tolist()
+    default_cols = [c for c in [
+        "Nº DO CAR", "Escopo", "Município", "LOTE", "Ciclo de análise",
+        "Condição_norm", "Tipo de imóvel", "Área",
+        "Elegibilidade", "UF",
+    ] if c in all_cols]
+
+    with st.expander("⚙️ Selecionar colunas visíveis", expanded=False):
+        cols_sel = st.multiselect("Colunas:", all_cols, default=default_cols or all_cols[:10],
+                                  key="cars_cols_select")
+
+    cols_final = cols_sel if cols_sel else (default_cols if default_cols else all_cols[:10])
+
+    st.dataframe(
+        df_view[cols_final],
+        use_container_width=True,
+        hide_index=True,
+        height=500,
+    )
+
+    # ── Distribuição por Escopo ──
+    st.markdown("---")
+    resumo = df_cars["Escopo"].value_counts().reindex(
+        [e for e in _ORDEM_ESCOPO if e in df_cars["Escopo"].values]
+    ).reset_index()
+    resumo.columns = ["Escopo", "Quantidade"]
+
+    fig = px.bar(
+        resumo, x="Escopo", y="Quantidade",
+        title="Distribuição de CARs Únicos por Escopo",
+        color="Escopo",
+        color_discrete_map=CORES_ESCOPO,
+        text="Quantidade",
+    )
+    fig.update_layout(
+        height=400, xaxis_tickangle=-30, showlegend=False,
+        margin=dict(l=20, r=20, t=40, b=100),
+    )
+    fig.update_traces(textposition="outside")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ════════════════════════════════════════════════════════════════
 # MAIN — ORQUESTRAÇÃO
 # ════════════════════════════════════════════════════════════════
 
@@ -1425,9 +1592,9 @@ def main():
         
         # ── Modo ──
         st.markdown("### 🔀 Menu")
-        modo = st.radio("Menu", ["📊 Painel Estratégico", "🔧 Painel Tático", "🗺️ Mapa", "📋 Dados / Tabelas"], index=0,
+        modo = st.radio("Menu", ["📊 Painel Estratégico", "🔧 Painel Tático", "🏷️ CARs", "🗺️ Mapa", "📋 Dados / Tabelas"], index=0,
                         label_visibility="collapsed",
-                        help="Estratégico: visão executiva. Tático: detalhamento operacional. Mapa: visualização geoespacial. Dados: tabelas brutas.")
+                        help="Estratégico: visão executiva. Tático: detalhamento operacional. CARs: visão consolidada. Mapa: geoespacial. Dados: tabelas brutas.")
 
         st.divider()
         
@@ -1531,6 +1698,8 @@ def main():
         render_estrategico(df_a, df_r, df_e, kpis)
     elif "Painel Tático" in modo:
         render_tatico(df_a, df_r, df_e, kpis)
+    elif "CARs" in modo:
+        render_cars(df_a, df_r, df_e)
     elif "Mapa" in modo:
         render_mapa(df_a, df_r, df_e)
     else:
