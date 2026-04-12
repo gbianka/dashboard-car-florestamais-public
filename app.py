@@ -573,7 +573,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
     # TAB: ANÁLISE DE CAR
     # ────────────────────────────────────────────────────────
     with tab_analise:
-        st.markdown("### Detalhamento — Análise de CAR")
+        st.markdown("### Análise de CAR")
 
         total_a = len(df_a)
 
@@ -745,7 +745,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
     # TAB: RETIFICAÇÃO
     # ────────────────────────────────────────────────────────
     with tab_retif:
-        st.markdown("### Detalhamento — Retificação de CAR")
+        st.markdown("### Retificação de CAR")
         total_r = len(df_r)
 
         r1, r2, r3, r4 = st.columns(4)
@@ -805,7 +805,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
     # TAB: ELEGIBILIDADE PRA
     # ────────────────────────────────────────────────────────
     with tab_eleg:
-        st.markdown("### Detalhamento — Elegibilidade para PRA")
+        st.markdown("### Elegibilidade para PRA")
         total_e = len(df_e)
 
         e1, e2, e3, e4 = st.columns(4)
