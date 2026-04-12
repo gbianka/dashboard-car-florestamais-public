@@ -1408,13 +1408,16 @@ def construir_df_cars_unicos(df_a, df_r, df_e):
     col_e = "Nº DO CAR"
     col_unif = "Nº DO CAR"
 
-    # Sets de CARs por escopo
-    cars_a = set(df_a[col_a].dropna().unique()) if col_a in df_a.columns else set()
-    cars_r = set(df_r[col_r].dropna().unique()) if col_r in df_r.columns else set()
-    cars_e = set(df_e[col_e].dropna().unique()) if col_e in df_e.columns else set()
+    # Sets de CARs por escopo (filtrar NaN, vazios e espaços)
+    def _cars_validos(series):
+        return set(x for x in series.dropna().unique() if str(x).strip())
+
+    cars_a = _cars_validos(df_a[col_a]) if col_a in df_a.columns else set()
+    cars_r = _cars_validos(df_r[col_r]) if col_r in df_r.columns else set()
+    cars_e = _cars_validos(df_e[col_e]) if col_e in df_e.columns else set()
 
     # ── Análise: registro do maior ciclo ──
-    df_a_u = df_a.copy()
+    df_a_u = df_a[df_a[col_a].notna() & (df_a[col_a].astype(str).str.strip() != "")].copy() if col_a in df_a.columns else df_a.copy()
     if "Ciclo de análise" in df_a_u.columns:
         df_a_u["Ciclo de análise"] = pd.to_numeric(df_a_u["Ciclo de análise"], errors="coerce")
         df_a_u = (df_a_u
@@ -1425,7 +1428,8 @@ def construir_df_cars_unicos(df_a, df_r, df_e):
 
     # ── Retificação: último registro por CAR, renomear coluna ──
     if col_r in df_r.columns:
-        df_r_u = df_r.drop_duplicates(subset=col_r, keep="last").copy()
+        df_r_u = df_r[df_r[col_r].notna() & (df_r[col_r].astype(str).str.strip() != "")].copy()
+        df_r_u = df_r_u.drop_duplicates(subset=col_r, keep="last")
         if col_r != col_unif:
             df_r_u = df_r_u.rename(columns={col_r: col_unif})
     else:
@@ -1433,7 +1437,8 @@ def construir_df_cars_unicos(df_a, df_r, df_e):
 
     # ── Elegibilidade: último registro por CAR ──
     if col_e in df_e.columns:
-        df_e_u = df_e.drop_duplicates(subset=col_e, keep="last").copy()
+        df_e_u = df_e[df_e[col_e].notna() & (df_e[col_e].astype(str).str.strip() != "")].copy()
+        df_e_u = df_e_u.drop_duplicates(subset=col_e, keep="last")
     else:
         df_e_u = pd.DataFrame(columns=[col_unif])
 
