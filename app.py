@@ -58,9 +58,12 @@ button, input, select, textarea, option,
 [data-testid="stTable"],
 [data-testid="stExpander"],
 [data-testid="stTabs"],
-[data-testid="stFileUploader"] section,
 .stMarkdown, .stAlert, .stCaption, .stToast {
     font-family: 'Manrope', sans-serif !important;
+}
+[class*="material-symbols"],
+[class*="material-icons"] {
+    font-family: 'Material Symbols Rounded' !important;
 }
 </style>
 """, unsafe_allow_html=True)
