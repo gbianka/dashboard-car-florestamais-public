@@ -539,12 +539,15 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     # ── Evolução temporal ──
     st.markdown("#### 📈 Evolução Temporal")
 
-    def _achar_col_data(df, preferidas=["Data fim", "Data início"]):
+    def _achar_col_data(df, preferidas=[
+        "Data fim", "Data início",
+        "Data da Última Retificação", "Data da Retificação (Manual)",
+    ]):
         for c in preferidas:
             if c in df.columns:
                 return c
         for c in df.columns:
-            if "data" in c.lower():
+            if "data" in c.lower() and "nascimento" not in c.lower():
                 return c
         return None
 
@@ -562,12 +565,14 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 
     fig_tempo = go.Figure()
     _tem_dados = False
+    _fontes = []
 
     # Análise
     if "Data fim" in df_a.columns:
         m_a = _agrupar_mensal(df_a, "Data fim", "Nº DO CAR")
         if m_a is not None and not m_a.empty:
             _tem_dados = True
+            _fontes.append("Análise: Data fim")
             fig_tempo.add_trace(go.Scatter(
                 x=m_a["Mês"], y=m_a["total"], mode="lines+markers",
                 name="Análise (mensal)", line=dict(color=COR["verde_escuro"], width=3),
@@ -591,6 +596,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
         m_r = _agrupar_mensal(df_r, col_data_r, col_car_r)
         if m_r is not None and not m_r.empty:
             _tem_dados = True
+            _fontes.append(f"Retificação: {col_data_r}")
             fig_tempo.add_trace(go.Scatter(
                 x=m_r["Mês"], y=m_r["total"], mode="lines+markers",
                 name="Retificação", line=dict(color=COR["azul"], width=3),
@@ -602,6 +608,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
         m_e = _agrupar_mensal(df_e, col_data_e, "Nº DO CAR")
         if m_e is not None and not m_e.empty:
             _tem_dados = True
+            _fontes.append(f"Elegibilidade: {col_data_e}")
             fig_tempo.add_trace(go.Scatter(
                 x=m_e["Mês"], y=m_e["total"], mode="lines+markers",
                 name="Elegibilidade", line=dict(color=COR["laranja"], width=3),
@@ -616,6 +623,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
             yaxis2=dict(title="Acumulado", overlaying="y", side="right"),
         )
         st.plotly_chart(fig_tempo, width="stretch")
+        st.caption("Colunas de data utilizadas: " + " | ".join(_fontes))
     else:
         st.info("Sem dados de datas para gerar evolução temporal.")
 
