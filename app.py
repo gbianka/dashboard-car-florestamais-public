@@ -570,11 +570,18 @@ def render_estrategico(df_a, df_r, df_e, kpis):
             _tem_dados = True
             fig_tempo.add_trace(go.Scatter(
                 x=m_a["Mês"], y=m_a["total"], mode="lines+markers",
-                name="Análise", line=dict(color=COR["verde_escuro"], width=3),
+                name="Análise (mensal)", line=dict(color=COR["verde_escuro"], width=3),
             ))
+            m_a["acumulado"] = m_a["cars_unicos"].cumsum()
             fig_tempo.add_trace(go.Bar(
-                x=m_a["Mês"], y=m_a["cars_unicos"], name="CARs únicos (Análise)",
-                marker_color=COR["verde_claro"], opacity=0.5,
+                x=m_a["Mês"], y=m_a["cars_unicos"], name="CARs únicos (mensal)",
+                marker_color=COR["verde_claro"], opacity=0.4,
+            ))
+            fig_tempo.add_trace(go.Scatter(
+                x=m_a["Mês"], y=m_a["acumulado"], mode="lines",
+                name="CARs únicos (acumulado)",
+                line=dict(color=COR["verde_claro"], width=2, dash="dot"),
+                yaxis="y2",
             ))
 
     # Retificação
@@ -604,8 +611,9 @@ def render_estrategico(df_a, df_r, df_e, kpis):
         fig_tempo.update_layout(
             height=400, xaxis_tickangle=-45,
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
-            margin=dict(l=40, r=20, t=40, b=80),
-            yaxis_title="Registros",
+            margin=dict(l=40, r=40, t=40, b=80),
+            yaxis_title="Registros / mês",
+            yaxis2=dict(title="Acumulado", overlaying="y", side="right"),
         )
         st.plotly_chart(fig_tempo, width="stretch")
     else:
