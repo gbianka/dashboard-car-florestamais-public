@@ -1464,6 +1464,15 @@ def construir_df_cars_unicos(df_a, df_r, df_e):
         lambda x: _classificar_imovel(str(x), cars_a, cars_r, cars_e)
     ))
 
+    # ── Último Ciclo de Análise (terceira coluna) ──
+    if "Ciclo de análise" in df_a.columns:
+        _ciclo = pd.to_numeric(df_a["Ciclo de análise"], errors="coerce")
+        _max_ciclos = df_a.assign(_c=_ciclo).groupby(col_a)["_c"].max().to_dict()
+        df_cars.insert(2, "Último Ciclo", df_cars[col_unif].map(_max_ciclos))
+
+    # ── Remover colunas 100% vazias ──
+    df_cars = df_cars.dropna(axis=1, how="all")
+
     return df_cars
 
 
@@ -1472,21 +1481,14 @@ def render_cars(df_a, df_r, df_e):
 
     st.markdown("### 🏷️ CARs Únicos — Visão Consolidada")
     st.caption(
-        "Cada linha é um CAR único. Para CARs com múltiplos ciclos de análise, "
-        "prevalece o registro do ciclo mais alto. Colunas exclusivas de cada "
-        "escopo são incluídas automaticamente."
+        "Cada linha é um CAR único. Prevalece o registro do maior ciclo de análise. "
+        "Colunas exclusivas de Retificação e Elegibilidade aparecem apenas para "
+        "CARs que passaram por esses escopos."
     )
 
     df_cars = construir_df_cars_unicos(df_a, df_r, df_e)
 
-    # ── KPIs ──
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("CARs Únicos", fmt_int(len(df_cars)))
-    c2.metric("Em Análise", fmt_int(len(df_cars[df_cars["Escopo"].str.contains("Análise")])))
-    c3.metric("Em Retificação", fmt_int(len(df_cars[df_cars["Escopo"].str.contains("Retificação")])))
-    c4.metric("Em Elegibilidade", fmt_int(len(df_cars[df_cars["Escopo"].str.contains("Elegibilidade")])))
-
-    # ── Filtros ──
+    # ── Filtros (ACIMA dos KPIs) ──
     _ORDEM_ESCOPO = [
         "Apenas Análise", "Apenas Retificação", "Apenas Elegibilidade",
         "Análise + Retificação", "Análise + Elegibilidade",
@@ -1514,14 +1516,25 @@ def render_cars(df_a, df_r, df_e):
     if busca_car:
         df_view = df_view[df_view["Nº DO CAR"].astype(str).str.contains(busca_car, case=False, na=False)]
 
-    st.caption(f"Exibindo {fmt_int(len(df_view))} de {fmt_int(len(df_cars))} CARs")
+    # Remover colunas que ficaram 100% vazias após filtragem
+    df_view = df_view.dropna(axis=1, how="all")
+
+    # ── KPIs (refletem filtros) ──
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("CARs Únicos", fmt_int(len(df_view)))
+    c2.metric("Em Análise", fmt_int(len(df_view[df_view["Escopo"].str.contains("Análise")])))
+    c3.metric("Em Retificação", fmt_int(len(df_view[df_view["Escopo"].str.contains("Retificação")])))
+    c4.metric("Em Elegibilidade", fmt_int(len(df_view[df_view["Escopo"].str.contains("Elegibilidade")])))
+
+    if escopo_sel or busca_car:
+        st.caption(f"🔍 Exibindo {fmt_int(len(df_view))} de {fmt_int(len(df_cars))} CARs")
 
     # ── Seletor de colunas ──
     all_cols = df_view.columns.tolist()
     default_cols = [c for c in [
-        "Nº DO CAR", "Escopo", "Município", "LOTE", "Ciclo de análise",
+        "Nº DO CAR", "Escopo", "Último Ciclo", "Município", "LOTE",
         "Condição_norm", "Tipo de imóvel", "Área",
-        "Elegibilidade", "UF",
+        "Grau de Complexidade", "Status final",
     ] if c in all_cols]
 
     with st.expander("⚙️ Selecionar colunas visíveis", expanded=False):
@@ -1539,8 +1552,8 @@ def render_cars(df_a, df_r, df_e):
 
     # ── Distribuição por Escopo ──
     st.markdown("---")
-    resumo = df_cars["Escopo"].value_counts().reindex(
-        [e for e in _ORDEM_ESCOPO if e in df_cars["Escopo"].values]
+    resumo = df_view["Escopo"].value_counts().reindex(
+        [e for e in _ORDEM_ESCOPO if e in df_view["Escopo"].values]
     ).reset_index()
     resumo.columns = ["Escopo", "Quantidade"]
 
