@@ -1799,10 +1799,74 @@ def render_detalhe_car(df_a, df_r, df_e):
 
 
 # ════════════════════════════════════════════════════════════════
+# LOGIN
+# ════════════════════════════════════════════════════════════════
+
+# Credenciais padrão (podem ser sobrescritas via .streamlit/secrets.toml)
+_CREDENCIAIS_PADRAO = {
+    "admin": "florestamais2024",
+    "analista": "car2024",
+    "gestor": "pra2024",
+}
+
+
+def _obter_credenciais():
+    """Obtém credenciais do secrets.toml ou usa padrão."""
+    try:
+        return dict(st.secrets["credentials"]["users"])
+    except Exception:
+        return _CREDENCIAIS_PADRAO
+
+
+def _render_login():
+    """Renderiza a tela de login. Retorna True se autenticado."""
+    if st.session_state.get("autenticado"):
+        return True
+
+    import base64, pathlib
+    _logo_path = pathlib.Path(__file__).parent / "assets" / "img" / "LOGO_FLORESTAMAIS_TRANSPARENTE_V1.svg"
+    if _logo_path.exists():
+        _logo_b64 = base64.b64encode(_logo_path.read_bytes()).decode()
+        _logo_src = f"data:image/svg+xml;base64,{_logo_b64}"
+    else:
+        _logo_src = "https://www.florestamaisamazonia.org.br/wp-content/themes/tupi-florestamais/assets/img/logo_floresta_mono.png"
+
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_c:
+        st.markdown(f"""
+        <div style="text-align: center; margin: 3rem 0 2rem 0;">
+            <img src="{_logo_src}" alt="Floresta+ Amazônia" style="height: 120px; margin-bottom: 1rem;">
+            <h2 style="font-family: Manrope, sans-serif; color: #1B5E20; margin: 0;">Dashboard CAR / PRA</h2>
+            <p style="color: #666; font-family: Manrope, sans-serif;">Projeto Floresta+ — Amazônia Legal</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("login_form"):
+            usuario = st.text_input("Usuário", placeholder="Digite seu usuário")
+            senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+            submit = st.form_submit_button("🔓 Entrar", use_container_width=True)
+
+        if submit:
+            creds = _obter_credenciais()
+            if usuario in creds and creds[usuario] == senha:
+                st.session_state["autenticado"] = True
+                st.session_state["usuario"] = usuario
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos.")
+
+    return False
+
+
+# ════════════════════════════════════════════════════════════════
 # MAIN — ORQUESTRAÇÃO
 # ════════════════════════════════════════════════════════════════
 
 def main():
+    # ── Login ──
+    if not _render_login():
+        return
+
     # ── Cabeçalho ──
     import base64, pathlib
     _logo_path = pathlib.Path(__file__).parent / "assets" / "img" / "LOGO_FLORESTAMAIS_TRANSPARENTE_V1.svg"
@@ -1828,6 +1892,14 @@ def main():
 
     # ── Sidebar: Upload + Filtros ──
     with st.sidebar:
+
+        # ── Usuário logado + Sair ──
+        _usr_col, _sair_col = st.columns([3, 1])
+        _usr_col.caption(f"👤 {st.session_state.get('usuario', '')}")
+        if _sair_col.button("❌", help="Sair", key="btn_logout"):
+            st.session_state["autenticado"] = False
+            st.session_state["usuario"] = ""
+            st.rerun()
         
         # ── Modo ──
         st.markdown("### 🔀 Menu")
