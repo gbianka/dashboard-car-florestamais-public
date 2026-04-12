@@ -1246,29 +1246,39 @@ def render_mapa(df_a, df_r, df_e):
         )
         return
 
-    shp_zip = st.file_uploader(
-        "📁 Shapefile SICAR (.zip)",
+    shp_zips = st.file_uploader(
+        "📁 Shapefiles SICAR (.zip)",
         type=["zip"],
-        help="Arquivo .zip contendo .shp, .shx, .dbf e .prj do SICAR",
+        accept_multiple_files=True,
+        help="Um ou mais arquivos .zip com shapefiles do SICAR (um por estado, por exemplo)",
         key="shp_upload_mapa",
     )
 
-    if shp_zip is None:
-        st.info("☝️ Faça upload de um arquivo .zip com os shapefiles do SICAR.")
+    if not shp_zips:
+        st.info("☝️ Faça upload de um ou mais arquivos .zip com os shapefiles do SICAR.")
         m = folium.Map(location=[-3.4, -65.0], zoom_start=5, tiles="CartoDB positron",
                       max_bounds=True, min_lat=-34.0, max_lat=6.0, min_lon=-74.0, max_lon=-33.0)
         st_folium(m, width=None, height=500, returned_objects=[])
         return
 
-    # ── Carregar shapefile ──
-    with st.spinner("Carregando shapefile..."):
-        gdf, erro = _carregar_shapefile(shp_zip.getvalue())
+    # ── Carregar e concatenar shapefiles ──
+    gdfs = []
+    with st.spinner(f"Carregando {len(shp_zips)} shapefile(s)..."):
+        for shp_zip in shp_zips:
+            gdf_i, erro = _carregar_shapefile(shp_zip.getvalue())
+            if erro:
+                st.warning(f"⚠️ {shp_zip.name}: {erro}")
+            else:
+                gdf_i["_arquivo"] = shp_zip.name
+                gdfs.append(gdf_i)
 
-    if erro:
-        st.error(f"❌ {erro}")
+    if not gdfs:
+        st.error("❌ Nenhum shapefile válido encontrado nos arquivos enviados.")
         return
 
-    st.success(f"✅ {len(gdf)} feições carregadas")
+    import pandas as _pd
+    gdf = gpd.GeoDataFrame(_pd.concat(gdfs, ignore_index=True), crs=gdfs[0].crs)
+    st.success(f"✅ {len(gdf)} feições carregadas de {len(gdfs)} arquivo(s)")
 
     # ── Detectar coluna do CAR ──
     col_car_shp = _detectar_coluna_car(gdf)
@@ -1305,7 +1315,7 @@ def render_mapa(df_a, df_r, df_e):
         max_lon=-33.0,
     )
 
-    cols_popup = [col_car_shp, "_escopo"]
+    cols_popup = [col_car_shp, "_escopo", "_arquivo"]
     for c in ["municipio", "nom_munic", "MUNICIPIO", "area_imovel", "AREA", "des_condic"]:
         if c in gdf.columns:
             cols_popup.append(c)
