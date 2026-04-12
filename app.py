@@ -1287,62 +1287,55 @@ def render_mapa(df_a, df_r, df_e):
         lambda x: _classificar_imovel(str(x), cars_a, cars_r, cars_e)
     )
 
-    # ── Filtro de escopo ──
-    escopos_presentes = sorted(gdf["_escopo"].unique())
-    escopos_sel = st.multiselect(
-        "Filtrar por escopo:", escopos_presentes,
-        default=escopos_presentes,
-        help="Quais escopos exibir no mapa",
-    )
-    gdf_filtrado = gdf[gdf["_escopo"].isin(escopos_sel)] if escopos_sel else gdf
-
-    if gdf_filtrado.empty:
-        st.warning("Nenhuma feição para exibir com os filtros selecionados.")
-        return
-
-    # ── Construir mapa Folium ──
-    centroid = gdf_filtrado.geometry.centroid
+    # ── Construir mapa Folium com camadas por escopo ──
+    centroid = gdf.geometry.centroid
     m = folium.Map(
         location=[centroid.y.mean(), centroid.x.mean()],
         zoom_start=8,
         tiles="CartoDB positron",
     )
 
-    def _style_fn(feature):
-        escopo = feature["properties"].get("_escopo", "Fora do Escopo")
-        return {
-            "fillColor": CORES_ESCOPO.get(escopo, COR["cinza"]),
-            "color": "#333333",
-            "weight": 1,
-            "fillOpacity": 0.6,
-        }
-
     cols_popup = [col_car_shp, "_escopo"]
     for c in ["municipio", "nom_munic", "MUNICIPIO", "area_imovel", "AREA", "des_condic"]:
-        if c in gdf_filtrado.columns:
+        if c in gdf.columns:
             cols_popup.append(c)
+    cols_keep = [c for c in cols_popup + ["geometry"] if c in gdf.columns]
 
-    cols_keep = [c for c in cols_popup + ["geometry"] if c in gdf_filtrado.columns]
-    gdf_display = gdf_filtrado[cols_keep].copy()
+    # Uma camada (FeatureGroup) para cada escopo
+    escopos_presentes = sorted(gdf["_escopo"].unique())
+    for escopo in escopos_presentes:
+        gdf_escopo = gdf[gdf["_escopo"] == escopo][cols_keep].copy()
+        if gdf_escopo.empty:
+            continue
 
-    folium.GeoJson(
-        gdf_display.to_json(),
-        style_function=_style_fn,
-        tooltip=folium.GeoJsonTooltip(
-            fields=[col_car_shp, "_escopo"],
-            aliases=["CAR:", "Escopo:"],
-            sticky=True,
-        ),
-        popup=folium.GeoJsonPopup(
-            fields=cols_popup,
-            aliases=[c.replace("_", " ").title() for c in cols_popup],
-        ),
-        name="Imóveis",
-    ).add_to(m)
+        cor = CORES_ESCOPO.get(escopo, COR["cinza"])
 
-    bounds = gdf_filtrado.total_bounds
+        fg = folium.FeatureGroup(name=f"● {escopo} ({len(gdf_escopo)})", show=True)
+
+        folium.GeoJson(
+            gdf_escopo.to_json(),
+            style_function=lambda feature, c=cor: {
+                "fillColor": c,
+                "color": "#333333",
+                "weight": 1,
+                "fillOpacity": 0.6,
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=[col_car_shp, "_escopo"],
+                aliases=["CAR:", "Escopo:"],
+                sticky=True,
+            ),
+            popup=folium.GeoJsonPopup(
+                fields=cols_popup,
+                aliases=[c.replace("_", " ").title() for c in cols_popup],
+            ),
+        ).add_to(fg)
+
+        fg.add_to(m)
+
+    bounds = gdf.total_bounds
     m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
-    folium.LayerControl().add_to(m)
+    folium.LayerControl(collapsed=False).add_to(m)
 
     st_folium(m, width=None, height=600, returned_objects=[])
 
