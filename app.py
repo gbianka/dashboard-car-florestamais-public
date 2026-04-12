@@ -1859,9 +1859,10 @@ def _render_login():
         [data-testid="stSidebar"] { display: none; }
         .stForm { background: rgba(255,255,255,0.07); border-radius: 12px; padding: 1.5rem; }
         .stForm label, .stForm .stMarkdown p { color: rgba(255,255,255,0.85) !important; }
-        .stForm input { background: rgba(255,255,255,0.12) !important; color: white !important;
+        .stForm input { background: rgba(255,255,255,0.12) !important; color: #1B5E20 !important;
                         border: 1px solid rgba(255,255,255,0.2) !important; }
         .stForm input::placeholder { color: rgba(255,255,255,0.4) !important; }
+        .stForm input:focus { color: #111 !important; background: rgba(255,255,255,0.85) !important; }
         .stForm button[kind="formSubmit"] { background: #2E7D32 !important; color: white !important;
                                             border: none !important; font-weight: 600 !important; }
         .stForm button[kind="formSubmit"]:hover { background: #388E3C !important; }
@@ -1871,7 +1872,7 @@ def _render_login():
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
         st.markdown(f"""
-        <div style="text-align: center; margin: 4rem 0 2rem 0;">
+        <div style="text-align: center; margin: 1rem 0 2rem 0;">
             <img src="{_logo_src}" alt="Floresta+ Amazônia" style="height: 160px; margin-bottom: 1.5rem;">
             <h2 style="font-family: Manrope, sans-serif; color: white; margin: 0;">Dashboard CAR / PRA</h2>
             <p style="color: rgba(255,255,255,0.6); font-family: Manrope, sans-serif;">Projeto Floresta+ — Amazônia Legal</p>
@@ -1885,11 +1886,12 @@ def _render_login():
 
         if submit:
             creds = _obter_credenciais()
-            if usuario in creds and creds[usuario]["senha"] == senha:
+            _usr = usuario.strip().lower()
+            if _usr in creds and creds[_usr]["senha"] == senha:
                 st.session_state["autenticado"] = True
-                st.session_state["usuario"] = usuario
-                st.session_state["perfil"] = creds[usuario]["perfil"]
-                st.session_state["nome_usuario"] = creds[usuario]["nome"]
+                st.session_state["usuario"] = _usr
+                st.session_state["perfil"] = creds[_usr]["perfil"]
+                st.session_state["nome_usuario"] = creds[_usr]["nome"]
                 st.rerun()
             else:
                 st.error("Usuário ou senha incorretos.")
