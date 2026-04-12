@@ -669,7 +669,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
         if visao_tecnico == "Técnico Vinculado" and "Técnico Vinculado" in df_a.columns:
             prod_all = df_a["Técnico Vinculado"].dropna()
             _titulo_grafico("Técnico Vinculado", len(prod_all), total_a)
-            prod = prod_all.value_counts().head(15)
+            prod = prod_all.value_counts()
             df_prod = pd.DataFrame({"Técnico": prod.index, "Análises": prod.values})
             df_prod["label"] = df_prod["Análises"].apply(fmt_int)
             fig_prod = px.bar(df_prod, x="Técnico", y="Análises",
@@ -693,7 +693,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
                     "Análise Interna": [inter.get(t, 0) for t in tecnicos_todos],
                 })
                 df_stack["Total"] = df_stack["Análise Externa"] + df_stack["Análise Interna"]
-                df_stack = df_stack.sort_values("Total", ascending=False).head(15)
+                df_stack = df_stack.sort_values("Total", ascending=False)
                 fig_stack = go.Figure()
                 fig_stack.add_trace(go.Bar(
                     x=df_stack["Técnico"], y=df_stack["Análise Externa"],
