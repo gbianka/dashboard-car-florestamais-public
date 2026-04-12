@@ -4,3 +4,6 @@ plotly>=5.18.0
 openpyxl>=3.1.0
 xlsxwriter>=3.1.0
 numpy>=1.24.0
+folium>=0.15.0
+streamlit-folium>=0.18.0
+geopandas>=0.14.0

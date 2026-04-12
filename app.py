@@ -33,6 +33,15 @@ import unicodedata
 import warnings
 warnings.filterwarnings("ignore")
 
+# ── Bibliotecas geoespaciais (opcionais) ──
+try:
+    import geopandas as gpd
+    import folium
+    from streamlit_folium import st_folium
+    HAS_GEO = True
+except ImportError:
+    HAS_GEO = False
+
 st.set_page_config(
     page_title="Dashboard CAR/PRA",
     page_icon="🌿",
@@ -1146,6 +1155,223 @@ def exportar_xlsx(df_a, df_r, df_e, kpis, filtros_ativos):
 
 
 # ════════════════════════════════════════════════════════════════
+# §M  MÓDULO MAPA — SHAPEFILES SICAR
+# ════════════════════════════════════════════════════════════════
+
+CORES_ESCOPO = {
+    "Análise":                                  COR["verde_escuro"],
+    "Retificação":                              COR["azul"],
+    "Elegibilidade":                            COR["laranja"],
+    "Análise + Retificação":                     "#00897B",
+    "Análise + Elegibilidade":                   COR["roxo"],
+    "Retificação + Elegibilidade":               COR["vermelho"],
+    "Análise + Retificação + Elegibilidade":      "#37474F",
+    "Fora do Escopo":                           COR["cinza"],
+}
+
+
+def _carregar_shapefile(file_bytes):
+    """Carrega shapefile a partir de bytes de um arquivo ZIP."""
+    import zipfile, tempfile, os
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zip_path = os.path.join(tmpdir, "upload.zip")
+        with open(zip_path, "wb") as f:
+            f.write(file_bytes)
+        with zipfile.ZipFile(zip_path, "r") as z:
+            z.extractall(tmpdir)
+        shp_paths = []
+        for root, dirs, files in os.walk(tmpdir):
+            for f in files:
+                if f.lower().endswith(".shp"):
+                    shp_paths.append(os.path.join(root, f))
+        if not shp_paths:
+            return None, "Nenhum arquivo .shp encontrado no ZIP."
+        gdf = gpd.read_file(shp_paths[0])
+        if gdf.crs is not None and gdf.crs.to_epsg() != 4326:
+            gdf = gdf.to_crs(epsg=4326)
+        elif gdf.crs is None:
+            gdf = gdf.set_crs(epsg=4326)
+        return gdf, None
+
+
+def _detectar_coluna_car(gdf):
+    """Tenta detectar automaticamente a coluna do código do CAR."""
+    candidatas = [
+        "cod_imovel", "COD_IMOVEL", "Cod_Imovel",
+        "num_car", "NUM_CAR", "Num_Car",
+        "cod_car", "COD_CAR", "CODIGO", "codigo",
+    ]
+    for c in candidatas:
+        if c in gdf.columns:
+            return c
+    for c in gdf.columns:
+        if c == "geometry":
+            continue
+        if gdf[c].dtype == "object":
+            amostra = gdf[c].dropna().head(10)
+            if amostra.str.match(r"^[A-Z]{2}-\d{7}-").any():
+                return c
+    return None
+
+
+def _classificar_imovel(codigo, cars_a, cars_r, cars_e):
+    """Classifica um imóvel pelo seu escopo no projeto."""
+    partes = []
+    if codigo in cars_a:
+        partes.append("Análise")
+    if codigo in cars_r:
+        partes.append("Retificação")
+    if codigo in cars_e:
+        partes.append("Elegibilidade")
+    return " + ".join(partes) if partes else "Fora do Escopo"
+
+
+def render_mapa(df_a, df_r, df_e):
+    """§M — Módulo de Mapa: visualização geoespacial dos imóveis do Projeto."""
+
+    st.markdown("### 🗺️ Mapa de Imóveis — Shapefiles SICAR")
+    st.caption(
+        "Faça upload dos shapefiles (.zip) exportados do SICAR para visualizar "
+        "os imóveis rurais que foram escopo do Projeto CAR/PRA."
+    )
+
+    if not HAS_GEO:
+        st.error(
+            "⚠️ Bibliotecas de geoprocessamento não instaladas. "
+            "Execute: `pip install geopandas folium streamlit-folium`"
+        )
+        return
+
+    shp_zip = st.file_uploader(
+        "📁 Shapefile SICAR (.zip)",
+        type=["zip"],
+        help="Arquivo .zip contendo .shp, .shx, .dbf e .prj do SICAR",
+        key="shp_upload_mapa",
+    )
+
+    if shp_zip is None:
+        st.info("☝️ Faça upload de um arquivo .zip com os shapefiles do SICAR.")
+        m = folium.Map(location=[-3.4, -65.0], zoom_start=5, tiles="CartoDB positron")
+        st_folium(m, width=None, height=500, returned_objects=[])
+        return
+
+    # ── Carregar shapefile ──
+    with st.spinner("Carregando shapefile..."):
+        gdf, erro = _carregar_shapefile(shp_zip.getvalue())
+
+    if erro:
+        st.error(f"❌ {erro}")
+        return
+
+    st.success(f"✅ {len(gdf)} feições carregadas")
+
+    # ── Detectar coluna do CAR ──
+    col_car_shp = _detectar_coluna_car(gdf)
+    if col_car_shp:
+        st.caption(f"Coluna do CAR detectada: **{col_car_shp}**")
+    else:
+        cols_texto = [c for c in gdf.columns if c != "geometry"]
+        col_car_shp = st.selectbox(
+            "Selecione a coluna do CAR no shapefile:",
+            cols_texto,
+            help="Coluna que contém o código do imóvel rural no SICAR",
+        )
+
+    # ── Classificar por escopo do projeto ──
+    col_car_proj = "Nº DO CAR"
+    cars_a = set(df_a[col_car_proj].dropna().unique()) if col_car_proj in df_a.columns else set()
+    cars_r = set(df_r[col_car_proj].dropna().unique()) if col_car_proj in df_r.columns else set()
+    cars_e = set(df_e[col_car_proj].dropna().unique()) if col_car_proj in df_e.columns else set()
+
+    gdf["_escopo"] = gdf[col_car_shp].apply(
+        lambda x: _classificar_imovel(str(x), cars_a, cars_r, cars_e)
+    )
+
+    # ── Filtro de escopo ──
+    escopos_presentes = sorted(gdf["_escopo"].unique())
+    escopos_sel = st.multiselect(
+        "Filtrar por escopo:", escopos_presentes,
+        default=escopos_presentes,
+        help="Quais escopos exibir no mapa",
+    )
+    gdf_filtrado = gdf[gdf["_escopo"].isin(escopos_sel)] if escopos_sel else gdf
+
+    if gdf_filtrado.empty:
+        st.warning("Nenhuma feição para exibir com os filtros selecionados.")
+        return
+
+    # ── Construir mapa Folium ──
+    centroid = gdf_filtrado.geometry.centroid
+    m = folium.Map(
+        location=[centroid.y.mean(), centroid.x.mean()],
+        zoom_start=8,
+        tiles="CartoDB positron",
+    )
+
+    def _style_fn(feature):
+        escopo = feature["properties"].get("_escopo", "Fora do Escopo")
+        return {
+            "fillColor": CORES_ESCOPO.get(escopo, COR["cinza"]),
+            "color": "#333333",
+            "weight": 1,
+            "fillOpacity": 0.6,
+        }
+
+    cols_popup = [col_car_shp, "_escopo"]
+    for c in ["municipio", "nom_munic", "MUNICIPIO", "area_imovel", "AREA", "des_condic"]:
+        if c in gdf_filtrado.columns:
+            cols_popup.append(c)
+
+    cols_keep = [c for c in cols_popup + ["geometry"] if c in gdf_filtrado.columns]
+    gdf_display = gdf_filtrado[cols_keep].copy()
+
+    folium.GeoJson(
+        gdf_display.to_json(),
+        style_function=_style_fn,
+        tooltip=folium.GeoJsonTooltip(
+            fields=[col_car_shp, "_escopo"],
+            aliases=["CAR:", "Escopo:"],
+            sticky=True,
+        ),
+        popup=folium.GeoJsonPopup(
+            fields=cols_popup,
+            aliases=[c.replace("_", " ").title() for c in cols_popup],
+        ),
+        name="Imóveis",
+    ).add_to(m)
+
+    bounds = gdf_filtrado.total_bounds
+    m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
+    folium.LayerControl().add_to(m)
+
+    st_folium(m, width=None, height=600, returned_objects=[])
+
+    # ── Resumo ──
+    st.markdown("---")
+    st.markdown("#### 📊 Resumo dos Imóveis Carregados")
+
+    resumo = gdf["_escopo"].value_counts().reset_index()
+    resumo.columns = ["Escopo", "Quantidade"]
+
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.dataframe(resumo, use_container_width=True, hide_index=True)
+        st.metric("Total de feições", fmt_int(len(gdf)))
+        no_projeto = len(gdf[gdf["_escopo"] != "Fora do Escopo"])
+        st.metric("No escopo do Projeto", fmt_int(no_projeto))
+
+    with col2:
+        fig = px.pie(
+            resumo, names="Escopo", values="Quantidade",
+            title="Distribuição por Escopo do Projeto",
+            color="Escopo",
+            color_discrete_map=CORES_ESCOPO,
+        )
+        fig.update_layout(height=350, margin=dict(l=10, r=10, t=40, b=10))
+        st.plotly_chart(fig, use_container_width=True)
+
+
+# ════════════════════════════════════════════════════════════════
 # MAIN — ORQUESTRAÇÃO
 # ════════════════════════════════════════════════════════════════
 
@@ -1178,9 +1404,9 @@ def main():
         
         # ── Modo ──
         st.markdown("### 🔀 Menu")
-        modo = st.radio("Menu", ["📊 Painel Estratégico", "🔧 Painel Tático", "📋 Dados / Tabelas"], index=0,
+        modo = st.radio("Menu", ["📊 Painel Estratégico", "🔧 Painel Tático", "🗺️ Mapa", "📋 Dados / Tabelas"], index=0,
                         label_visibility="collapsed",
-                        help="Estratégico: visão executiva. Tático: detalhamento operacional. Dados: tabelas brutas para normalização.")
+                        help="Estratégico: visão executiva. Tático: detalhamento operacional. Mapa: visualização geoespacial. Dados: tabelas brutas.")
 
         st.divider()
         
@@ -1284,6 +1510,8 @@ def main():
         render_estrategico(df_a, df_r, df_e, kpis)
     elif "Painel Tático" in modo:
         render_tatico(df_a, df_r, df_e, kpis)
+    elif "Mapa" in modo:
+        render_mapa(df_a, df_r, df_e)
     else:
         render_dados_tabela(df_a, df_r, df_e)
 
