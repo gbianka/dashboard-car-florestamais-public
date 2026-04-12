@@ -1598,42 +1598,6 @@ def render_cars(df_a, df_r, df_e):
         height=500,
     )
 
-    # ── Detalhe de um CAR ──
-    st.markdown("---")
-    with st.expander("🔍 Detalhe de um CAR — Todos os Dados do Consolidado", expanded=False):
-        cars_list = sorted(df_view["Nº DO CAR"].unique())
-        car_sel = st.selectbox(
-            "Selecione um CAR:", [""] + list(cars_list),
-            format_func=lambda x: "Escolha um CAR..." if x == "" else x,
-            key="car_detalhe_sel",
-        )
-
-        if car_sel:
-            registros = df_consol[df_consol["Nº DO CAR"] == car_sel]
-
-            if registros.empty:
-                st.warning("Nenhum registro encontrado para este CAR.")
-            else:
-                # Cabeçalho
-                _esc = registros["Escopo"].iloc[0]
-                _uc = registros["Último Ciclo"].iloc[0] if "Último Ciclo" in registros.columns else "—"
-                _n = len(registros)
-                h1, h2, h3 = st.columns(3)
-                h1.metric("Escopo", _esc)
-                h2.metric("Último Ciclo", str(int(_uc)) if pd.notna(_uc) else "—")
-                h3.metric("Registros", fmt_int(_n))
-
-                # Registros por Origem
-                _meta = ["Nº DO CAR", "Origem", "Escopo", "Último Ciclo"]
-                for origem in ["Análise", "Retificação", "Elegibilidade"]:
-                    df_orig = registros[registros["Origem"] == origem]
-                    if df_orig.empty:
-                        continue
-                    st.markdown(f"##### {origem} — {len(df_orig)} registro(s)")
-                    df_show = df_orig.drop(columns=[c for c in _meta if c in df_orig.columns])
-                    df_show = df_show.dropna(axis=1, how="all")
-                    st.dataframe(df_show, use_container_width=True, hide_index=True)
-
     # ── Distribuição por Escopo ──
     st.markdown("---")
     resumo = df_view["Escopo"].value_counts().reindex(
@@ -1691,6 +1655,96 @@ def render_cars(df_a, df_r, df_e):
 
 
 # ════════════════════════════════════════════════════════════════
+# §D  DETALHE DO CAR — FICHA COMPLETA
+# ════════════════════════════════════════════════════════════════
+
+def _render_ficha_registro(row, meta_cols):
+    """Renderiza um registro como ficha com campos em colunas."""
+    dados = {k: v for k, v in row.items()
+             if k not in meta_cols and pd.notna(v) and str(v).strip()}
+    if not dados:
+        st.caption("Sem dados adicionais.")
+        return
+    campos = list(dados.items())
+    for i in range(0, len(campos), 3):
+        cols = st.columns(3)
+        for j, col in enumerate(cols):
+            if i + j < len(campos):
+                campo, valor = campos[i + j]
+                col.markdown(f"<small style='color:#888'>{campo}</small><br>"
+                             f"<strong>{valor}</strong>", unsafe_allow_html=True)
+
+
+def render_detalhe_car(df_a, df_r, df_e):
+    """§D — Ficha detalhada de um CAR com todos os dados do consolidado."""
+
+    st.markdown("### 🔍 Detalhe do CAR")
+    st.caption("Selecione um CAR para visualizar todos os dados do projeto, organizados por escopo.")
+
+    df_consol = construir_df_consolidado(df_a, df_r, df_e)
+
+    # ── Busca ──
+    busca = st.text_input(
+        "Buscar CAR:", placeholder="Digite o código (ex: AM-1300060-...)",
+        key="detalhe_busca",
+    )
+
+    if not busca:
+        st.info("☝️ Digite o código de um CAR para ver a ficha completa.")
+        return
+
+    matches = df_consol[df_consol["Nº DO CAR"].astype(str).str.contains(busca, case=False, na=False)]
+    cars_encontrados = sorted(matches["Nº DO CAR"].unique())
+
+    if not len(cars_encontrados):
+        st.warning("Nenhum CAR encontrado com esse código.")
+        return
+
+    car_sel = st.selectbox(
+        f"{len(cars_encontrados)} CAR(s) encontrado(s):", cars_encontrados,
+        key="detalhe_car_sel",
+    )
+
+    registros = df_consol[df_consol["Nº DO CAR"] == car_sel]
+    if registros.empty:
+        return
+
+    # ── Cabeçalho ──
+    _esc = registros["Escopo"].iloc[0]
+    _uc = registros["Último Ciclo"].iloc[0] if "Último Ciclo" in registros.columns else None
+    _n = len(registros)
+
+    st.markdown("---")
+    st.markdown(f"#### `{car_sel}`")
+    h1, h2, h3 = st.columns(3)
+    h1.metric("Escopo", _esc)
+    h2.metric("Último Ciclo", str(int(_uc)) if pd.notna(_uc) else "—")
+    h3.metric("Total de Registros", fmt_int(_n))
+
+    _meta = ["Nº DO CAR", "Origem", "Escopo", "Último Ciclo"]
+
+    # ── Seções por Escopo ──
+    for origem in ["Análise", "Retificação", "Elegibilidade"]:
+        df_orig = registros[registros["Origem"] == origem]
+        if df_orig.empty:
+            continue
+
+        st.markdown("---")
+        st.markdown(f"#### {origem} — {len(df_orig)} registro(s)")
+
+        for idx, (_, row) in enumerate(df_orig.iterrows()):
+            # Subtítulo para análises com ciclo
+            if origem == "Análise" and "Ciclo de análise" in row.index and pd.notna(row.get("Ciclo de análise")):
+                ciclo_val = row["Ciclo de análise"]
+                st.markdown(f"##### Ciclo {int(ciclo_val)}")
+
+            _render_ficha_registro(row, _meta)
+
+            if idx < len(df_orig) - 1:
+                st.divider()
+
+
+# ════════════════════════════════════════════════════════════════
 # MAIN — ORQUESTRAÇÃO
 # ════════════════════════════════════════════════════════════════
 
@@ -1723,9 +1777,9 @@ def main():
         
         # ── Modo ──
         st.markdown("### 🔀 Menu")
-        modo = st.radio("Menu", ["📊 Painel Estratégico", "🔧 Painel Tático", "🏷️ CARs", "🗺️ Mapa", "📋 Dados / Tabelas"], index=0,
+        modo = st.radio("Menu", ["📊 Painel Estratégico", "🔧 Painel Tático", "🏷️ CARs", "🔍 Detalhe CAR", "🗺️ Mapa", "📋 Dados / Tabelas"], index=0,
                         label_visibility="collapsed",
-                        help="Estratégico: visão executiva. Tático: detalhamento operacional. CARs: visão consolidada. Mapa: geoespacial. Dados: tabelas brutas.")
+                        help="Estratégico: visão executiva. Tático: operacional. CARs: consolidado. Detalhe: ficha do CAR. Mapa: geoespacial. Dados: tabelas brutas.")
 
         st.divider()
         
@@ -1831,6 +1885,8 @@ def main():
         render_tatico(df_a, df_r, df_e, kpis)
     elif "CARs" in modo:
         render_cars(df_a, df_r, df_e)
+    elif "Detalhe CAR" in modo:
+        render_detalhe_car(df_a, df_r, df_e)
     elif "Mapa" in modo:
         render_mapa(df_a, df_r, df_e)
     else:
