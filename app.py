@@ -578,7 +578,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
         total_a = len(df_a)
 
         a1, a2, a3, a4 = st.columns(4)
-        a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise']))
+        a1.metric("Total de Análises", fmt_int(kpis['registros_analise']))
         a2.metric("CARs Únicos", fmt_int(kpis['cars_analise']))
         a3.metric("Municípios", fmt_int(kpis['municipios_analise']))
         a4.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
@@ -749,7 +749,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
         total_r = len(df_r)
 
         r1, r2, r3, r4 = st.columns(4)
-        r1.metric("Total de Registros", fmt_int(kpis['registros_retif']))
+        r1.metric("Total de Retificações", fmt_int(kpis['registros_retif']))
         r2.metric("CARs Únicos", fmt_int(kpis['cars_retif']))
         r3.metric("Municípios", fmt_int(kpis['municipios_retif']))
         r4.metric("Retificados", fmt_pct(kpis['pct_retificado']),
@@ -962,7 +962,7 @@ def _resumo_completude(df):
     cols_criticas = int((resumo["% Preenchido"] < 50).sum())
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total de Registros", fmt_int(total))
+    c1.metric("Total de Elegibilidades", fmt_int(total))
     c2.metric("Colunas 100% preenchidas", cols_completas)
     c3.metric("Colunas com vazios", cols_com_vazios)
     c4.metric("Colunas críticas (<50%)", cols_criticas, delta=f"-{cols_criticas}" if cols_criticas else "0",
