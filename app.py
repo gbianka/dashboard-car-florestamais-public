@@ -1852,10 +1852,11 @@ def _render_login():
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
         st.markdown(f"""
-        <div style="text-align: center; margin: 3rem 0 2rem 0;">
-            <img src="{_logo_src}" alt="Floresta+ Amazônia" style="height: 120px; margin-bottom: 1rem;">
-            <h2 style="font-family: Manrope, sans-serif; color: #1B5E20; margin: 0;">Dashboard CAR / PRA</h2>
-            <p style="color: #666; font-family: Manrope, sans-serif;">Projeto Floresta+ — Amazônia Legal</p>
+        <div style="background: linear-gradient(135deg, #0D3B1E 0%, #1B5E20 50%, #0D3B1E 100%);
+                    padding: 3rem 2rem; border-radius: 16px; text-align: center; margin: 2rem 0;">
+            <img src="{_logo_src}" alt="Floresta+ Amazônia" style="height: 140px; margin-bottom: 1.5rem;">
+            <h2 style="font-family: Manrope, sans-serif; color: white; margin: 0;">Dashboard CAR / PRA</h2>
+            <p style="color: rgba(255,255,255,0.7); font-family: Manrope, sans-serif;">Projeto Floresta+ — Amazônia Legal</p>
         </div>
         """, unsafe_allow_html=True)
 
