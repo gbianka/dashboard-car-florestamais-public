@@ -121,6 +121,12 @@ def carregar_e_limpar(file_bytes, nome_arquivo):
     df_r = pd.read_excel(io.BytesIO(file_bytes), sheet_name=aba_r)
     df_e = pd.read_excel(io.BytesIO(file_bytes), sheet_name=aba_e)
 
+    # ── Strip em todas as colunas de texto ──
+    for df in [df_a, df_r, df_e]:
+        df.columns = df.columns.str.strip()
+        for col in df.select_dtypes(include=["object"]).columns:
+            df[col] = df[col].map(lambda x: x.strip() if isinstance(x, str) else x)
+
     # ── Limpeza Análise ──
     if "Ciclo de análise" in df_a.columns:
         df_a["Ciclo de análise"] = pd.to_numeric(df_a["Ciclo de análise"], errors="coerce")
@@ -855,14 +861,14 @@ def _alerta_car_fora_padrao(df, col_car):
     fora_padrao = cars[~cars.str.startswith("AM-")]
     if fora_padrao.empty:
         return
-    n = len(fora_padrao)
-    exemplos = fora_padrao.unique()[:5]
-    lista = ", ".join(f"`{c}`" for c in exemplos)
-    extra = f" e mais {n - 5} outros" if n > 5 else ""
-    st.warning(
-        f"**{n} registro(s) com código de CAR fora do padrão** (não começam com `AM-`): "
-        f"{lista}{extra}"
-    )
+    unicos = fora_padrao.unique()
+    st.warning(f"**{len(unicos)} código(s) de CAR fora do padrão** (não começam com `AM-`):")
+    with st.expander(f"Ver todos ({len(unicos)})", expanded=False):
+        st.dataframe(
+            pd.DataFrame({"Código do CAR fora do padrão": unicos}),
+            width="stretch",
+            hide_index=True,
+        )
 
 
 def render_dados_tabela(df_a, df_r, df_e):
