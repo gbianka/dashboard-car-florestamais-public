@@ -1159,9 +1159,9 @@ def exportar_xlsx(df_a, df_r, df_e, kpis, filtros_ativos):
 # ════════════════════════════════════════════════════════════════
 
 CORES_ESCOPO = {
-    "Análise":                                  COR["verde_escuro"],
-    "Retificação":                              COR["azul"],
-    "Elegibilidade":                            COR["laranja"],
+    "Apenas Análise":                           COR["verde_escuro"],
+    "Apenas Retificação":                       COR["azul"],
+    "Apenas Elegibilidade":                     COR["laranja"],
     "Análise + Retificação":                     "#00897B",
     "Análise + Elegibilidade":                   COR["roxo"],
     "Retificação + Elegibilidade":               COR["vermelho"],
@@ -1223,7 +1223,11 @@ def _classificar_imovel(codigo, cars_a, cars_r, cars_e):
         partes.append("Retificação")
     if codigo in cars_e:
         partes.append("Elegibilidade")
-    return " + ".join(partes) if partes else "Fora do Escopo"
+    if not partes:
+        return "Fora do Escopo"
+    if len(partes) == 1:
+        return f"Apenas {partes[0]}"
+    return " + ".join(partes)
 
 
 def render_mapa(df_a, df_r, df_e):
@@ -1301,8 +1305,14 @@ def render_mapa(df_a, df_r, df_e):
             cols_popup.append(c)
     cols_keep = [c for c in cols_popup + ["geometry"] if c in gdf.columns]
 
-    # Uma camada (FeatureGroup) para cada escopo
-    escopos_presentes = sorted(gdf["_escopo"].unique())
+    # Uma camada (FeatureGroup) para cada escopo — ordem fixa
+    _ORDEM_ESCOPO = [
+        "Apenas Análise", "Apenas Retificação", "Apenas Elegibilidade",
+        "Análise + Retificação", "Análise + Elegibilidade",
+        "Retificação + Elegibilidade", "Análise + Retificação + Elegibilidade",
+        "Fora do Escopo",
+    ]
+    escopos_presentes = [e for e in _ORDEM_ESCOPO if e in gdf["_escopo"].values]
     for escopo in escopos_presentes:
         gdf_escopo = gdf[gdf["_escopo"] == escopo][cols_keep].copy()
         if gdf_escopo.empty:
