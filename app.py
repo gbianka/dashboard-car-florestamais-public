@@ -355,32 +355,34 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 
     # ── Métricas de destaque ──
     st.markdown("### 📊 Indicadores-Chave do Projeto")
-    # ── Linha 1: Análise ──
-    st.caption("Análise")
+    # ── Linha 1: Visão Geral ──
+    st.caption("Visão Geral")
     a1, a2, a3, a4 = st.columns(4)
     a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise'] + kpis['registros_retif'] + kpis['registros_eleg']))
-    a2.metric("CARs Únicos", fmt_int(kpis['cars_analise']))
+    a2.metric("CARs Distintos", fmt_int(kpis['total_distintos']))
     a3.metric("Municípios", fmt_int(kpis['municipios_analise']))
-    a4.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
-              delta=f"-{fmt_pct(kpis['pct_sem_pendencia'])} sem", delta_color="inverse")
+    a4.metric("Técnicos", fmt_int(kpis['tecnicos']))
 
-    # ── Linha 2 ──
+    # ── Linha 2: Distintos por Escopo ──
+    st.caption("CARs Distintos por Escopo")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("CARs Analisados", fmt_int(kpis['cars_analise']),
+    c1.metric("Análise", fmt_int(kpis['cars_analise']),
               f"{fmt_int(kpis['registros_analise'])} registros")
-    c2.metric("CARs Retificados", fmt_int(kpis['cars_retif']),
+    c2.metric("Retificação", fmt_int(kpis['cars_retif']),
               f"{fmt_int(kpis['registros_retif'])} registros")
-    c3.metric("Elegibilidade PRA", fmt_pct(kpis['pct_elegivel']),
+    c3.metric("Elegibilidade", fmt_int(kpis['cars_eleg']),
+              f"{fmt_int(kpis['registros_eleg'])} registros")
+    c4.metric("Elegíveis PRA", fmt_pct(kpis['pct_elegivel']),
               f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
-    c4.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
-              delta=f"-{fmt_pct(kpis['pct_sem_pendencia'])} sem", delta_color="inverse")
 
-    # ── Linha 3 ──
+    # ── Linha 3: Indicadores ──
+    st.caption("Indicadores de Qualidade")
     c5, c6, c7, c8 = st.columns(4)
-    c5.metric("Municípios", fmt_int(kpis['municipios_analise']))
-    c6.metric("Técnicos", fmt_int(kpis['tecnicos']))
-    c7.metric("Média de Ciclos", fmt_dec(kpis['media_ciclos'], 2))
-    c8.metric("1º Ciclo", fmt_pct(kpis['pct_1ciclo']))
+    c5.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
+              delta=f"-{fmt_pct(kpis['pct_sem_pendencia'])} sem", delta_color="inverse")
+    c6.metric("Média de Ciclos", fmt_dec(kpis['media_ciclos'], 2))
+    c7.metric("1º Ciclo", fmt_pct(kpis['pct_1ciclo']))
+    c8.metric("UFs Elegibilidade", fmt_int(kpis['ufs_eleg']))
 
     st.divider()
 
