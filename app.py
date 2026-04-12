@@ -602,27 +602,52 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Produtividade por técnico
         st.markdown("##### Produtividade por Técnico")
-        cols_tecnico = {
-            "Técnico Vinculado": COR["azul"],
-            "Técnico Análise Externa": COR["verde"],
-            "Técnico Análise Interna": COR["laranja"],
-        }
-        cols_disponiveis = {label: cor for label, cor in cols_tecnico.items() if label in df_a.columns}
-        if cols_disponiveis:
-            subtab_tecnico = st.radio(
-                "Tipo de técnico", list(cols_disponiveis.keys()),
-                horizontal=True, key="radio_tecnico",
-            )
-            prod = df_a[subtab_tecnico].dropna().value_counts().head(15)
+        visao_tecnico = st.radio(
+            "Visualização", ["Técnico Vinculado", "Análise Externa / Interna"],
+            horizontal=True, key="radio_tecnico",
+        )
+
+        if visao_tecnico == "Técnico Vinculado" and "Técnico Vinculado" in df_a.columns:
+            prod = df_a["Técnico Vinculado"].dropna().value_counts().head(15)
             df_prod = pd.DataFrame({"Técnico": prod.index, "Análises": prod.values})
             df_prod["label"] = df_prod["Análises"].apply(fmt_int)
             fig_prod = px.bar(df_prod, x="Técnico", y="Análises",
-                              color_discrete_sequence=[cols_disponiveis[subtab_tecnico]],
+                              color_discrete_sequence=[COR["azul"]],
                               text="label")
             fig_prod.update_traces(textposition="auto")
             fig_prod.update_layout(height=350, xaxis_tickangle=-45, showlegend=False,
                                    margin=dict(l=40, r=20, t=20, b=80))
             st.plotly_chart(fig_prod, width="stretch")
+
+        elif visao_tecnico == "Análise Externa / Interna":
+            col_ext = "Técnico Análise Externa"
+            col_int = "Técnico Análise Interna"
+            if col_ext in df_a.columns and col_int in df_a.columns:
+                ext = df_a[col_ext].dropna().value_counts()
+                inter = df_a[col_int].dropna().value_counts()
+                tecnicos_todos = sorted(set(ext.index) | set(inter.index))
+                df_stack = pd.DataFrame({
+                    "Técnico": tecnicos_todos,
+                    "Análise Externa": [ext.get(t, 0) for t in tecnicos_todos],
+                    "Análise Interna": [inter.get(t, 0) for t in tecnicos_todos],
+                })
+                df_stack["Total"] = df_stack["Análise Externa"] + df_stack["Análise Interna"]
+                df_stack = df_stack.sort_values("Total", ascending=False).head(15)
+                fig_stack = go.Figure()
+                fig_stack.add_trace(go.Bar(
+                    x=df_stack["Técnico"], y=df_stack["Análise Externa"],
+                    name="Análise Externa", marker_color=COR["verde"],
+                    text=[fmt_int(v) for v in df_stack["Análise Externa"]], textposition="auto",
+                ))
+                fig_stack.add_trace(go.Bar(
+                    x=df_stack["Técnico"], y=df_stack["Análise Interna"],
+                    name="Análise Interna", marker_color=COR["laranja"],
+                    text=[fmt_int(v) for v in df_stack["Análise Interna"]], textposition="auto",
+                ))
+                fig_stack.update_layout(barmode="stack", height=350, xaxis_tickangle=-45,
+                                        margin=dict(l=40, r=20, t=20, b=80),
+                                        legend=dict(orientation="h", yanchor="bottom", y=1.02))
+                st.plotly_chart(fig_stack, width="stretch")
 
         # Top municípios
         st.markdown("##### Condição por Município (Top 10)")
