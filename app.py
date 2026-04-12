@@ -602,19 +602,26 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Produtividade por técnico
         st.markdown("##### Produtividade por Técnico")
-        if "Técnico Vinculado" in df_a.columns:
-            prod = df_a["Técnico Vinculado"].dropna().value_counts().head(15)
+        cols_tecnico = {
+            "Técnico Vinculado": COR["azul"],
+            "Técnico Análise Externa": COR["verde"],
+            "Técnico Análise Interna": COR["laranja"],
+        }
+        cols_disponiveis = {label: cor for label, cor in cols_tecnico.items() if label in df_a.columns}
+        if cols_disponiveis:
+            subtab_tecnico = st.radio(
+                "Tipo de técnico", list(cols_disponiveis.keys()),
+                horizontal=True, key="radio_tecnico",
+            )
+            prod = df_a[subtab_tecnico].dropna().value_counts().head(15)
             fig_prod = px.bar(x=prod.index, y=prod.values,
-                              color=prod.values, color_continuous_scale="Blues",
-                              labels={"x": "Técnico Vinculado", "y": "Análises"},
-                              text=prod.values)
+                              color_discrete_sequence=[cols_disponiveis[subtab_tecnico]],
+                              labels={"x": subtab_tecnico, "y": "Análises"},
+                              text=[fmt_int(v) for v in prod.values])
             fig_prod.update_traces(textposition="auto")
             fig_prod.update_layout(height=350, xaxis_tickangle=-45, showlegend=False,
-                                   coloraxis_showscale=False,
                                    margin=dict(l=40, r=20, t=20, b=80))
             st.plotly_chart(fig_prod, width="stretch")
-        else:
-            st.info(f"Coluna 'Técnico Vinculado' não encontrada. Colunas disponíveis: {list(df_a.columns[:20])}")
 
         # Top municípios
         st.markdown("##### Condição por Município (Top 10)")
