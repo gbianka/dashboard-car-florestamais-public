@@ -111,6 +111,21 @@ COORDS_UF = {
 }
 
 
+# ── Formatação pt-BR ──
+def fmt_int(v):
+    """Formata inteiro com separador de milhar pt-BR (ponto)."""
+    return f"{int(v):,}".replace(",", ".")
+
+def fmt_dec(v, casas=1):
+    """Formata decimal com vírgula e milhar com ponto (pt-BR)."""
+    s = f"{v:,.{casas}f}"
+    s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    return s
+
+def fmt_pct(v, casas=1):
+    """Formata percentual pt-BR (vírgula decimal)."""
+    return f"{fmt_dec(v, casas)}%"
+
 
 # ════════════════════════════════════════════════════════════════
 # §3  CARREGAMENTO E LIMPEZA DE DADOS
@@ -319,19 +334,19 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     # ── Métricas de destaque ──
     st.markdown("### 📊 Indicadores-Chave do Projeto")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("CARs Analisados", f"{kpis['cars_analise']:,}",
-              f"{kpis['registros_analise']:,} registros")
-    c2.metric("CARs Retificados", f"{kpis['cars_retif']:,}")
-    c3.metric("Elegibilidade PRA", f"{kpis['pct_elegivel']:.1f}%",
-              f"{kpis['n_fase1'] + kpis['n_fase2']} elegíveis")
-    c4.metric("CARs com Pendência", f"{kpis['pct_pendencia']:.1f}%",
-              delta=f"-{kpis['pct_sem_pendencia']:.1f}% sem", delta_color="inverse")
+    c1.metric("CARs Analisados", fmt_int(kpis['cars_analise']),
+              f"{fmt_int(kpis['registros_analise'])} registros")
+    c2.metric("CARs Retificados", fmt_int(kpis['cars_retif']))
+    c3.metric("Elegibilidade PRA", fmt_pct(kpis['pct_elegivel']),
+              f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
+    c4.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
+              delta=f"-{fmt_pct(kpis['pct_sem_pendencia'])} sem", delta_color="inverse")
 
     c5, c6, c7, c8 = st.columns(4)
-    c5.metric("Municípios", f"{kpis['municipios_analise']}")
-    c6.metric("Técnicos", f"{kpis['tecnicos']}")
-    c7.metric("Média de Ciclos", f"{kpis['media_ciclos']:.2f}")
-    c8.metric("1º Ciclo", f"{kpis['pct_1ciclo']:.1f}%")
+    c5.metric("Municípios", fmt_int(kpis['municipios_analise']))
+    c6.metric("Técnicos", fmt_int(kpis['tecnicos']))
+    c7.metric("Média de Ciclos", fmt_dec(kpis['media_ciclos'], 2))
+    c8.metric("1º Ciclo", fmt_pct(kpis['pct_1ciclo']))
 
     st.divider()
 
@@ -447,7 +462,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
                     elegivel = row.get("Fase 1", 0) + row.get("Fase 2", 0)
                     map_data.append({"UF": uf, "Total": total, "Elegível": elegivel,
                                      "Inelegível": row.get("Inelegível", 0),
-                                     "Taxa Elegib.": f"{elegivel/max(total,1)*100:.1f}%",
+                                     "Taxa Elegib.": fmt_pct(elegivel/max(total,1)*100),
                                      "lat": lat, "lon": lon})
             if map_data:
                 df_map_uf = pd.DataFrame(map_data)
@@ -522,7 +537,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 fig_c = go.Figure(go.Bar(
                     x=[f"{int(c)}º" for c in cd_counts.index], y=cd_counts.values,
                     marker_color=cores_c[:len(cd_counts)],
-                    text=[f"{v:,}" for v in cd_counts.values], textposition="auto",
+                    text=[fmt_int(v) for v in cd_counts.values], textposition="auto",
                 ))
                 fig_c.update_layout(height=300, margin=dict(l=20, r=10, t=10, b=30),
                                     yaxis_title="Registros")
@@ -537,7 +552,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 fig_comp = go.Figure(go.Bar(
                     x=comp.index, y=comp.values,
                     marker_color=[cores_comp.get(c, "#999") for c in comp.index],
-                    text=[f"{v:,}" for v in comp.values], textposition="auto",
+                    text=[fmt_int(v) for v in comp.values], textposition="auto",
                 ))
                 fig_comp.update_layout(height=300, margin=dict(l=20, r=10, t=10, b=30))
                 st.plotly_chart(fig_comp, width="stretch")
@@ -551,7 +566,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 fig_tipo = go.Figure(go.Bar(
                     x=["IRU", "AST"], y=tipo.values,
                     marker_color=[COR["azul"], COR["verde"]],
-                    text=[f"{v:,}" for v in tipo.values], textposition="auto",
+                    text=[fmt_int(v) for v in tipo.values], textposition="auto",
                 ))
                 fig_tipo.update_layout(height=300, margin=dict(l=20, r=10, t=10, b=30))
                 st.plotly_chart(fig_tipo, width="stretch")
@@ -642,7 +657,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 fig_sr = go.Figure(go.Bar(
                     x=sr.index, y=sr.values,
                     marker_color=[cores_sr.get(s, COR["cinza"]) for s in sr.index],
-                    text=[f"{v:,}" for v in sr.values], textposition="auto",
+                    text=[fmt_int(v) for v in sr.values], textposition="auto",
                 ))
                 fig_sr.update_layout(height=320, margin=dict(l=20, r=10, t=10, b=30))
                 st.plotly_chart(fig_sr, width="stretch")
@@ -752,13 +767,13 @@ def render_tatico(df_a, df_r, df_e, kpis):
                     x=[f"{int(c)}º ciclo" for c in ciclo_sit.index],
                     y=ciclo_sit["pct_sem"].values, name="Sem pendência",
                     marker_color=COR["verde_claro"],
-                    text=[f"{v:.1f}%" for v in ciclo_sit["pct_sem"].values], textposition="auto",
+                    text=[fmt_pct(v) for v in ciclo_sit["pct_sem"].values], textposition="auto",
                 ))
                 fig_garg.add_trace(go.Bar(
                     x=[f"{int(c)}º ciclo" for c in ciclo_sit.index],
                     y=ciclo_sit["pct_com"].values, name="Com pendência",
                     marker_color=COR["vermelho"],
-                    text=[f"{v:.1f}%" for v in ciclo_sit["pct_com"].values], textposition="auto",
+                    text=[fmt_pct(v) for v in ciclo_sit["pct_com"].values], textposition="auto",
                 ))
                 fig_garg.update_layout(barmode="stack", height=350, yaxis_title="%",
                                        margin=dict(l=40, r=20, t=20, b=40))
@@ -773,7 +788,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
             fig_hm = px.bar(x=pend_mun.values, y=pend_mun.index, orientation="h",
                             color=pend_mun.values, color_continuous_scale="RdYlGn_r",
                             labels={"x": "% com Pendência", "y": "Município"},
-                            text=[f"{v:.1f}%" for v in pend_mun.values])
+                            text=[fmt_pct(v) for v in pend_mun.values])
             fig_hm.update_traces(textposition="auto")
             fig_hm.update_layout(height=500, yaxis=dict(autorange="reversed"),
                                  coloraxis_showscale=False,
@@ -825,7 +840,7 @@ def _resumo_completude(df):
     cols_criticas = int((resumo["% Preenchido"] < 50).sum())
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total de Registros", f"{total:,}")
+    c1.metric("Total de Registros", fmt_int(total))
     c2.metric("Colunas 100% preenchidas", cols_completas)
     c3.metric("Colunas com vazios", cols_com_vazios)
     c4.metric("Colunas críticas (<50%)", cols_criticas, delta=f"-{cols_criticas}" if cols_criticas else "0",
@@ -842,7 +857,7 @@ def _resumo_completude(df):
                 height=min(400, 35 * len(com_vazios) + 40),
                 column_config={
                     "% Preenchido": st.column_config.ProgressColumn(
-                        "% Preenchido", min_value=0, max_value=100, format="%.1f%%",
+                        "% Preenchido", min_value=0, max_value=100, format="%.1f %%",
                     ),
                 },
             )
@@ -879,7 +894,7 @@ def _render_tabela_aba(df, label_car_col, colunas_chave=None):
         mask_vazio = df_view[cols_check].isnull().any(axis=1) | (df_view[cols_check] == "").any(axis=1)
         df_view = df_view[mask_vazio]
 
-    st.caption(f"Exibindo {len(df_view):,} de {len(df):,} registros")
+    st.caption(f"Exibindo {fmt_int(len(df_view))} de {fmt_int(len(df))} registros")
 
     # Exibir tabela
     st.dataframe(
@@ -1117,7 +1132,7 @@ def main():
     if filtros_ativos:
         tags = " · ".join([f"**{k}**: {len(v) if isinstance(v, list) else v}" for k, v in filtros_ativos.items()])
         st.markdown(f"🔍 Filtros ativos: {tags}")
-        st.caption(f"Registros: Análise={len(df_a):,} | Retificação={len(df_r):,} | Elegibilidade={len(df_e):,}")
+        st.caption(f"Registros: Análise={fmt_int(len(df_a))} | Retificação={fmt_int(len(df_r))} | Elegibilidade={fmt_int(len(df_e))}")
 
     # ── KPIs ──
     kpis = calcular_kpis(df_a, df_r, df_e)
