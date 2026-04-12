@@ -140,13 +140,6 @@ def normalizar_texto(s):
     return unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("ASCII")
 
 
-def col_existe(df, nome):
-    """Verifica se coluna existe (case-insensitive fuzzy)."""
-    for c in df.columns:
-        if nome.lower() in c.lower():
-            return c
-    return None
-
 
 def normalizar_condicao(val):
     if pd.isna(val): return "Outros"
@@ -196,14 +189,20 @@ def carregar_e_limpar(file_bytes, nome_arquivo):
         df_a["Condição_norm"] = df_a["Condição final do cadastro"].apply(normalizar_condicao)
 
     # ── Limpeza Retificação ──
-    col_car_r = col_existe(df_r, "código do car") or col_existe(df_r, "Código do CAR")
-    if col_car_r and col_car_r != "Código do CAR":
-        df_r = df_r.rename(columns={col_car_r: "Código do CAR"})
+    # Coluna do CAR: padronizar para "Código do CAR"
+    if "Código do CAR" not in df_r.columns:
+        for c in df_r.columns:
+            if c.strip().lower() == "código do car":
+                df_r = df_r.rename(columns={c: "Código do CAR"})
+                break
 
     # ── Limpeza Elegibilidade ──
-    col_car_e = col_existe(df_e, "nº do car") or col_existe(df_e, "Nº DO CAR")
-    if col_car_e and col_car_e != "Nº DO CAR":
-        df_e = df_e.rename(columns={col_car_e: "Nº DO CAR"})
+    # Coluna do CAR: padronizar para "Nº DO CAR"
+    if "Nº DO CAR" not in df_e.columns:
+        for c in df_e.columns:
+            if c.strip().lower() == "nº do car":
+                df_e = df_e.rename(columns={c: "Nº DO CAR"})
+                break
 
     return df_a, df_r, df_e
 
@@ -539,18 +538,6 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     # ── Evolução temporal ──
     st.markdown("#### 📈 Evolução Temporal")
 
-    def _achar_col_data(df, preferidas=[
-        "Data fim", "Data início",
-        "Data da Última Retificação", "Data da Retificação (Manual)",
-    ]):
-        for c in preferidas:
-            if c in df.columns:
-                return c
-        for c in df.columns:
-            if "data" in c.lower() and "nascimento" not in c.lower():
-                return c
-        return None
-
     def _agrupar_mensal(df, col_data, col_car):
         tmp = df.dropna(subset=[col_data]).copy()
         tmp[col_data] = pd.to_datetime(tmp[col_data], errors="coerce")
@@ -567,7 +554,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     _tem_dados = False
     _fontes = []
 
-    # Análise
+    # Análise — coluna fixa: "Data fim"
     if "Data fim" in df_a.columns:
         m_a = _agrupar_mensal(df_a, "Data fim", "Nº DO CAR")
         if m_a is not None and not m_a.empty:
@@ -589,30 +576,20 @@ def render_estrategico(df_a, df_r, df_e, kpis):
                 yaxis="y2",
             ))
 
-    # Retificação
-    col_data_r = _achar_col_data(df_r)
-    col_car_r = "Código do CAR" if "Código do CAR" in df_r.columns else "Nº DO CAR"
-    if col_data_r and col_car_r in df_r.columns:
-        m_r = _agrupar_mensal(df_r, col_data_r, col_car_r)
+    # Retificação — coluna fixa: "Data da Última Retificação"
+    _COL_DATA_RETIF = "Data da Última Retificação"
+    _COL_CAR_RETIF = "Código do CAR"
+    if _COL_DATA_RETIF in df_r.columns and _COL_CAR_RETIF in df_r.columns:
+        m_r = _agrupar_mensal(df_r, _COL_DATA_RETIF, _COL_CAR_RETIF)
         if m_r is not None and not m_r.empty:
             _tem_dados = True
-            _fontes.append(f"Retificação: {col_data_r}")
+            _fontes.append(f"Retificação: {_COL_DATA_RETIF}")
             fig_tempo.add_trace(go.Scatter(
                 x=m_r["Mês"], y=m_r["total"], mode="lines+markers",
                 name="Retificação", line=dict(color=COR["azul"], width=3),
             ))
 
-    # Elegibilidade
-    col_data_e = _achar_col_data(df_e)
-    if col_data_e and "Nº DO CAR" in df_e.columns:
-        m_e = _agrupar_mensal(df_e, col_data_e, "Nº DO CAR")
-        if m_e is not None and not m_e.empty:
-            _tem_dados = True
-            _fontes.append(f"Elegibilidade: {col_data_e}")
-            fig_tempo.add_trace(go.Scatter(
-                x=m_e["Mês"], y=m_e["total"], mode="lines+markers",
-                name="Elegibilidade", line=dict(color=COR["laranja"], width=3),
-            ))
+    # Elegibilidade — sem coluna de data disponível na planilha
 
     if _tem_dados:
         fig_tempo.update_layout(
