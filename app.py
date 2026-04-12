@@ -46,13 +46,14 @@ st.markdown("""
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-*:not([class*="icon"]):not([class*="Icon"]):not([data-testid*="icon"]):not(.material-symbols-rounded),
+*:not([class*="icon"]):not([class*="Icon"]):not([data-testid*="icon"]):not([class*="material-symbols"]):not([class*="material-icons"]),
 *::before, *::after {
     font-family: 'Manrope', sans-serif !important;
 }
-.material-symbols-rounded,
 [class*="material-symbols"],
-[class*="material-icons"] {
+[class*="material-icons"],
+[data-testid="stFileUploader"] span[class*="material"],
+[data-testid="stBaseButton-headerNoPadding"] span {
     font-family: 'Material Symbols Rounded', 'Material Icons' !important;
 }
 </style>
