@@ -1659,7 +1659,7 @@ def render_cars(df_a, df_r, df_e):
 # ════════════════════════════════════════════════════════════════
 
 def _render_ficha_registro(row, meta_cols):
-    """Renderiza um registro como ficha com campos em colunas."""
+    """Renderiza um registro como ficha com campos em 3 colunas."""
     dados = {k: v for k, v in row.items()
              if k not in meta_cols and pd.notna(v) and str(v).strip()}
     if not dados:
@@ -1679,7 +1679,7 @@ def render_detalhe_car(df_a, df_r, df_e):
     """§D — Ficha detalhada de um CAR com todos os dados do consolidado."""
 
     st.markdown("### 🔍 Detalhe do CAR")
-    st.caption("Selecione um CAR para visualizar todos os dados do projeto, organizados por escopo.")
+    st.caption("Selecione um CAR para visualizar todos os dados do projeto.")
 
     df_consol = construir_df_consolidado(df_a, df_r, df_e)
 
@@ -1723,25 +1723,39 @@ def render_detalhe_car(df_a, df_r, df_e):
 
     _meta = ["Nº DO CAR", "Origem", "Escopo", "Último Ciclo"]
 
-    # ── Seções por Escopo ──
-    for origem in ["Análise", "Retificação", "Elegibilidade"]:
-        df_orig = registros[registros["Origem"] == origem]
-        if df_orig.empty:
-            continue
+    # ── Abas por Escopo ──
+    origens_presentes = [o for o in ["Análise", "Retificação", "Elegibilidade"]
+                         if o in registros["Origem"].values]
 
-        st.markdown("---")
-        st.markdown(f"#### {origem} — {len(df_orig)} registro(s)")
+    if not origens_presentes:
+        st.warning("Nenhum registro com Origem identificada.")
+        return
 
-        for idx, (_, row) in enumerate(df_orig.iterrows()):
-            # Subtítulo para análises com ciclo
-            if origem == "Análise" and "Ciclo de análise" in row.index and pd.notna(row.get("Ciclo de análise")):
-                ciclo_val = row["Ciclo de análise"]
-                st.markdown(f"##### Ciclo {int(ciclo_val)}")
+    tabs = st.tabs([
+        f"{o} ({len(registros[registros['Origem'] == o])})" for o in origens_presentes
+    ])
 
-            _render_ficha_registro(row, _meta)
+    for tab, origem in zip(tabs, origens_presentes):
+        with tab:
+            df_orig = registros[registros["Origem"] == origem]
 
-            if idx < len(df_orig) - 1:
-                st.divider()
+            if origem == "Análise" and "Ciclo de análise" in df_orig.columns and len(df_orig) > 1:
+                # Seletor de ciclo para navegar sem rolagem
+                ciclos = sorted(df_orig["Ciclo de análise"].dropna().unique())
+                ciclo_sel = st.selectbox(
+                    "Ciclo de análise:", ciclos,
+                    index=len(ciclos) - 1,  # último ciclo por padrão
+                    format_func=lambda x: f"Ciclo {int(x)}",
+                    key=f"detalhe_ciclo_{car_sel}",
+                )
+                row = df_orig[df_orig["Ciclo de análise"] == ciclo_sel].iloc[0]
+                _render_ficha_registro(row, _meta)
+            else:
+                # Registro único ou sem ciclo
+                for idx, (_, row) in enumerate(df_orig.iterrows()):
+                    if idx > 0:
+                        st.divider()
+                    _render_ficha_registro(row, _meta)
 
 
 # ════════════════════════════════════════════════════════════════
