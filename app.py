@@ -1153,11 +1153,16 @@ def main():
     # ── Cabeçalho ──
     st.markdown("""
     <div style="background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 50%, #1565C0 100%);
-                padding: 1.2rem 2rem; border-radius: 12px; margin-bottom: 1rem; font-family: Manrope, sans-serif;">
-        <h1 style="color: white; margin: 0; font-size: 1.8rem; font-family: Manrope, sans-serif;">🌿 Dashboard — Projeto CAR / PRA</h1>
-        <p style="color: rgba(255,255,255,0.85); margin: 0.3rem 0 0 0; font-size: 0.95rem; font-family: Manrope, sans-serif;">
-            Análise de CAR · Retificação · Elegibilidade PRA — Amazônia Legal
-        </p>
+                padding: 1.2rem 2rem; border-radius: 12px; margin-bottom: 1rem; font-family: Manrope, sans-serif;
+                display: flex; align-items: center; gap: 1.2rem;">
+        <img src="https://www.florestamaisamazonia.org.br/wp-content/themes/tupi-florestamais/assets/img/logo_floresta.png"
+             alt="Floresta+ Amazônia" style="height: 60px; flex-shrink: 0; filter: brightness(1.1);">
+        <div>
+            <h1 style="color: white; margin: 0; font-size: 1.8rem; font-family: Manrope, sans-serif;">Dashboard — Projeto CAR / PRA</h1>
+            <p style="color: rgba(255,255,255,0.85); margin: 0.3rem 0 0 0; font-size: 0.95rem; font-family: Manrope, sans-serif;">
+                Análise de CAR · Retificação · Elegibilidade PRA — Amazônia Legal
+            </p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
