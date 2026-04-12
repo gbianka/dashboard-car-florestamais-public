@@ -330,20 +330,22 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 
     # ── Métricas de destaque ──
     st.markdown("### 📊 Indicadores-Chave do Projeto")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("CARs Analisados", fmt_int(kpis['cars_analise']),
-              f"{fmt_int(kpis['registros_analise'])} registros")
-    c2.metric("CARs Retificados", fmt_int(kpis['cars_retif']))
-    c3.metric("Elegibilidade PRA", fmt_pct(kpis['pct_elegivel']),
-              f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
-    c4.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
+    # ── Linha 1: Análise ──
+    st.caption("Análise")
+    a1, a2, a3, a4 = st.columns(4)
+    a1.metric("Total de Itens", fmt_int(kpis['registros_analise']))
+    a2.metric("CARs Únicos", fmt_int(kpis['cars_analise']))
+    a3.metric("Municípios", fmt_int(kpis['municipios_analise']))
+    a4.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
               delta=f"-{fmt_pct(kpis['pct_sem_pendencia'])} sem", delta_color="inverse")
 
-    c5, c6, c7, c8 = st.columns(4)
-    c5.metric("Municípios", fmt_int(kpis['municipios_analise']))
-    c6.metric("Técnicos", fmt_int(kpis['tecnicos']))
-    c7.metric("Média de Ciclos", fmt_dec(kpis['media_ciclos'], 2))
-    c8.metric("1º Ciclo", fmt_pct(kpis['pct_1ciclo']))
+    # ── Linha 2 ──
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("CARs Retificados", fmt_int(kpis['cars_retif']))
+    c2.metric("Elegibilidade PRA", fmt_pct(kpis['pct_elegivel']),
+              f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
+    c3.metric("Média de Ciclos", fmt_dec(kpis['media_ciclos'], 2))
+    c4.metric("1º Ciclo", fmt_pct(kpis['pct_1ciclo']))
 
     st.divider()
 
