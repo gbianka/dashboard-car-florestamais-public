@@ -47,7 +47,8 @@ st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 html, body, .stApp,
-h1, h2, h3, h4, h5, h6, p, span, div, li, a, label, td, th,
+h1, h2, h3, h4, h5, h6, p, div, li, a, label, td, th,
+span:not([class*="material"]),
 button, input, select, textarea, option,
 [data-testid="stMarkdownContainer"],
 [data-testid="stMetricValue"],
@@ -61,8 +62,10 @@ button, input, select, textarea, option,
 .stMarkdown, .stAlert, .stCaption, .stToast {
     font-family: 'Manrope', sans-serif !important;
 }
-[class*="material-symbols"],
-[class*="material-icons"] {
+span[class*="material-symbols"],
+span[class*="material-icons"],
+.material-symbols-rounded,
+.material-symbols-outlined {
     font-family: 'Material Symbols Rounded' !important;
 }
 </style>
