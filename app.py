@@ -1155,7 +1155,7 @@ def main():
     <div style="background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 50%, #1565C0 100%);
                 padding: 1.2rem 2rem; border-radius: 12px; margin-bottom: 1rem; font-family: Manrope, sans-serif;
                 display: flex; align-items: center; gap: 1.2rem;">
-        <img src="https://www.florestamaisamazonia.org.br/wp-content/themes/tupi-florestamais/assets/img/logo_floresta.png"
+        <img src="https://www.florestamaisamazonia.org.br/wp-content/themes/tupi-florestamais/assets/img/logo_floresta_mono.png"
              alt="Floresta+ Amazônia" style="height: 60px; flex-shrink: 0; filter: brightness(1.1);">
         <div>
             <h1 style="color: white; margin: 0; font-size: 1.8rem; font-family: Manrope, sans-serif;">Dashboard — Projeto CAR / PRA</h1>
