@@ -1255,7 +1255,8 @@ def render_mapa(df_a, df_r, df_e):
 
     if shp_zip is None:
         st.info("☝️ Faça upload de um arquivo .zip com os shapefiles do SICAR.")
-        m = folium.Map(location=[-3.4, -65.0], zoom_start=5, tiles="CartoDB positron")
+        m = folium.Map(location=[-3.4, -65.0], zoom_start=5, tiles="CartoDB positron",
+                      max_bounds=True, min_lat=-34.0, max_lat=6.0, min_lon=-74.0, max_lon=-33.0)
         st_folium(m, width=None, height=500, returned_objects=[])
         return
 
@@ -1297,6 +1298,11 @@ def render_mapa(df_a, df_r, df_e):
         location=[centroid.y.mean(), centroid.x.mean()],
         zoom_start=8,
         tiles="CartoDB positron",
+        max_bounds=True,
+        min_lat=-34.0,
+        max_lat=6.0,
+        min_lon=-74.0,
+        max_lon=-33.0,
     )
 
     cols_popup = [col_car_shp, "_escopo"]
