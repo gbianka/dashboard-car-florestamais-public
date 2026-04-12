@@ -1171,34 +1171,36 @@ def main():
         if "Município" in df_a_raw.columns:
             municipios_disp = sorted(df_a_raw["Município"].dropna().unique())
             filtros["municipios"] = st.multiselect("Município", municipios_disp,
+                                                    placeholder="Selecione...",
                                                     help="Filtre por um ou mais municípios")
 
         # Lote
         if "LOTE" in df_a_raw.columns:
             lotes_disp = sorted(df_a_raw["LOTE"].dropna().unique())
             filtros["lotes"] = st.multiselect("Lote", lotes_disp,
+                                               placeholder="Selecione...",
                                                help="Filtre por um ou mais lotes")
 
         # Status
         if "Condição_norm" in df_a_raw.columns:
             status_disp = sorted(df_a_raw["Condição_norm"].dropna().unique())
-            filtros["status"] = st.multiselect("Status de Análise", status_disp)
+            filtros["status"] = st.multiselect("Status de Análise", status_disp, placeholder="Selecione...")
 
         # Ciclos
         if "Ciclo de análise" in df_a_raw.columns:
             ciclos_disp = sorted(df_a_raw["Ciclo de análise"].dropna().unique())
             ciclos_disp = [int(c) for c in ciclos_disp if c in [1, 2, 3, 4]]
-            filtros["ciclos"] = st.multiselect("Ciclo de Análise", ciclos_disp)
+            filtros["ciclos"] = st.multiselect("Ciclo de Análise", ciclos_disp, placeholder="Selecione...")
 
         # Elegibilidade
         if "Elegibilidade" in df_e_raw.columns:
             eleg_disp = sorted(df_e_raw["Elegibilidade"].dropna().unique())
-            filtros["elegibilidade"] = st.multiselect("Elegibilidade PRA", eleg_disp)
+            filtros["elegibilidade"] = st.multiselect("Elegibilidade PRA", eleg_disp, placeholder="Selecione...")
 
         # UF
         if "UF" in df_e_raw.columns:
             uf_disp = sorted(df_e_raw["UF"].dropna().unique())
-            filtros["ufs"] = st.multiselect("UF (Elegibilidade)", uf_disp)
+            filtros["ufs"] = st.multiselect("UF (Elegibilidade)", uf_disp, placeholder="Selecione...")
 
         # Período
         if "Data fim" in df_a_raw.columns:
