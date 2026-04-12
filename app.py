@@ -195,11 +195,12 @@ def aplicar_filtros(df_a, df_r, df_e, filtros):
     if filtros.get("ufs") and "UF" in fe.columns:
         fe = fe[fe["UF"].isin(filtros["ufs"])]
 
-    # Período
+    # Período (mantém registros sem data)
     if filtros.get("data_inicio") and filtros.get("data_fim") and "Data fim" in fa.columns:
-        mask = fa["Data fim"].notna()
-        fa = fa[mask & (fa["Data fim"] >= pd.Timestamp(filtros["data_inicio"]))
-                    & (fa["Data fim"] <= pd.Timestamp(filtros["data_fim"]))]
+        sem_data = fa["Data fim"].isna()
+        dentro_periodo = (fa["Data fim"] >= pd.Timestamp(filtros["data_inicio"])) & \
+                         (fa["Data fim"] <= pd.Timestamp(filtros["data_fim"]))
+        fa = fa[sem_data | dentro_periodo]
 
     # Propagar filtro de CARs
     if filtros.get("municipios") or filtros.get("status"):
@@ -1059,10 +1060,16 @@ def main():
                 st.markdown("**Período (Data fim)**")
                 d_min = datas_validas.min().date()
                 d_max = datas_validas.max().date()
-                filtros["data_inicio"], filtros["data_fim"] = st.date_input(
+                datas_sel = st.date_input(
                     "Intervalo", value=(d_min, d_max), min_value=d_min, max_value=d_max,
                     label_visibility="collapsed",
                 )
+                # Só marca como filtro ativo se o usuário alterou o intervalo
+                if isinstance(datas_sel, tuple) and len(datas_sel) == 2:
+                    sel_ini, sel_fim = datas_sel
+                    if sel_ini != d_min or sel_fim != d_max:
+                        filtros["data_inicio"] = sel_ini
+                        filtros["data_fim"] = sel_fim
 
         st.divider()
 
