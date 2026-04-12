@@ -46,15 +46,21 @@ st.markdown("""
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-*:not([class*="icon"]):not([class*="Icon"]):not([data-testid*="icon"]):not([class*="material-symbols"]):not([class*="material-icons"]),
-*::before, *::after {
+html, body, .stApp,
+h1, h2, h3, h4, h5, h6, p, span, div, li, a, label, td, th,
+button, input, select, textarea, option,
+[data-testid="stMarkdownContainer"],
+[data-testid="stMetricValue"],
+[data-testid="stMetricDelta"],
+[data-testid="stMetricLabel"],
+[data-testid="stSidebar"],
+[data-testid="stDataFrame"],
+[data-testid="stTable"],
+[data-testid="stExpander"],
+[data-testid="stTabs"],
+[data-testid="stFileUploader"] section,
+.stMarkdown, .stAlert, .stCaption, .stToast {
     font-family: 'Manrope', sans-serif !important;
-}
-[class*="material-symbols"],
-[class*="material-icons"],
-[data-testid="stFileUploader"] span[class*="material"],
-[data-testid="stBaseButton-headerNoPadding"] span {
-    font-family: 'Material Symbols Rounded', 'Material Icons' !important;
 }
 </style>
 """, unsafe_allow_html=True)
