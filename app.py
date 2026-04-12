@@ -1484,10 +1484,10 @@ def construir_df_cars_unicos(df_a, df_r, df_e):
 
 
 def construir_df_consolidado(df_a, df_r, df_e):
-    """Constrói DataFrame consolidado com TODAS as colunas dos 3 escopos.
+    """Constrói DataFrame consolidado com TODOS os registros das 3 abas.
 
-    Cada coluna recebe sufixo (Análise), (Retificação) ou (Elegibilidade)
-    para distinguir colunas de mesmo nome entre escopos.
+    Empilha todas as linhas dos 3 escopos via pd.concat.
+    Adiciona colunas: Origem (aba), Escopo (classificação do CAR) e Último Ciclo.
     """
     col_a = "Nº DO CAR"
     col_r = "Código do CAR"
@@ -1497,58 +1497,40 @@ def construir_df_consolidado(df_a, df_r, df_e):
     def _cars_validos(series):
         return set(x for x in series.dropna().unique() if str(x).strip())
 
+    # Cópias limpas (sem CARs vazios, sem colunas Unnamed)
+    dfa = df_a[df_a[col_a].notna() & (df_a[col_a].astype(str).str.strip() != "")].copy() if col_a in df_a.columns else df_a.copy()
+    dfr = df_r[df_r[col_r].notna() & (df_r[col_r].astype(str).str.strip() != "")].copy() if col_r in df_r.columns else df_r.copy()
+    dfe = df_e[df_e[col_e].notna() & (df_e[col_e].astype(str).str.strip() != "")].copy() if col_e in df_e.columns else df_e.copy()
+
+    dfa = dfa.loc[:, ~dfa.columns.str.startswith("Unnamed")]
+    dfr = dfr.loc[:, ~dfr.columns.str.startswith("Unnamed")]
+    dfe = dfe.loc[:, ~dfe.columns.str.startswith("Unnamed")]
+
+    # Padronizar coluna do CAR na Retificação
+    if col_r in dfr.columns and col_r != col_unif:
+        dfr = dfr.rename(columns={col_r: col_unif})
+
+    # Coluna de Origem
+    dfa.insert(1, "Origem", "Análise")
+    dfr.insert(1, "Origem", "Retificação")
+    dfe.insert(1, "Origem", "Elegibilidade")
+
+    # Empilhar tudo
+    df_consol = pd.concat([dfa, dfr, dfe], ignore_index=True)
+
+    # Sets para classificação de Escopo
     cars_a = _cars_validos(df_a[col_a]) if col_a in df_a.columns else set()
     cars_r = _cars_validos(df_r[col_r]) if col_r in df_r.columns else set()
     cars_e = _cars_validos(df_e[col_e]) if col_e in df_e.columns else set()
 
-    # ── Análise: maior ciclo por CAR ──
-    df_a_u = df_a[df_a[col_a].notna() & (df_a[col_a].astype(str).str.strip() != "")].copy()
-    if "Ciclo de análise" in df_a_u.columns:
-        df_a_u["Ciclo de análise"] = pd.to_numeric(df_a_u["Ciclo de análise"], errors="coerce")
-        df_a_u = df_a_u.sort_values([col_a, "Ciclo de análise"]).drop_duplicates(subset=col_a, keep="last")
-    else:
-        df_a_u = df_a_u.drop_duplicates(subset=col_a, keep="last")
-
-    # ── Retificação: último por CAR ──
-    if col_r in df_r.columns:
-        df_r_u = df_r[df_r[col_r].notna() & (df_r[col_r].astype(str).str.strip() != "")].copy()
-        df_r_u = df_r_u.drop_duplicates(subset=col_r, keep="last")
-        df_r_u = df_r_u.rename(columns={col_r: col_unif})
-    else:
-        df_r_u = pd.DataFrame(columns=[col_unif])
-
-    # ── Elegibilidade: último por CAR ──
-    if col_e in df_e.columns:
-        df_e_u = df_e[df_e[col_e].notna() & (df_e[col_e].astype(str).str.strip() != "")].copy()
-        df_e_u = df_e_u.drop_duplicates(subset=col_e, keep="last")
-    else:
-        df_e_u = pd.DataFrame(columns=[col_unif])
-
-    # Limpar colunas Unnamed
-    df_a_u = df_a_u.loc[:, ~df_a_u.columns.str.startswith("Unnamed")]
-    df_r_u = df_r_u.loc[:, ~df_r_u.columns.str.startswith("Unnamed")]
-    df_e_u = df_e_u.loc[:, ~df_e_u.columns.str.startswith("Unnamed")]
-
-    # ── Adicionar sufixos a TODAS as colunas (exceto CAR) ──
-    df_a_sufx = df_a_u.rename(columns={c: f"{c} (Análise)" for c in df_a_u.columns if c != col_unif})
-    df_r_sufx = df_r_u.rename(columns={c: f"{c} (Retificação)" for c in df_r_u.columns if c != col_unif})
-    df_e_sufx = df_e_u.rename(columns={c: f"{c} (Elegibilidade)" for c in df_e_u.columns if c != col_unif})
-
-    # ── Base + merges ──
-    all_cars = sorted(cars_a | cars_r | cars_e)
-    df_consol = pd.DataFrame({col_unif: all_cars})
-    df_consol = df_consol.merge(df_a_sufx, on=col_unif, how="left")
-    df_consol = df_consol.merge(df_r_sufx, on=col_unif, how="left")
-    df_consol = df_consol.merge(df_e_sufx, on=col_unif, how="left")
-
-    # ── Escopo + Último Ciclo ──
-    df_consol.insert(1, "Escopo", df_consol[col_unif].apply(
+    # Inserir Escopo e Último Ciclo
+    df_consol.insert(2, "Escopo", df_consol[col_unif].apply(
         lambda x: _classificar_imovel(str(x), cars_a, cars_r, cars_e)
     ))
     if "Ciclo de análise" in df_a.columns:
         _ciclo = pd.to_numeric(df_a["Ciclo de análise"], errors="coerce")
         _max = df_a.assign(_c=_ciclo).groupby(col_a)["_c"].max().to_dict()
-        df_consol.insert(2, "Último Ciclo", df_consol[col_unif].map(_max))
+        df_consol.insert(3, "Último Ciclo", df_consol[col_unif].map(_max))
 
     # Remover colunas 100% vazias
     df_consol = df_consol.dropna(axis=1, how="all")
