@@ -271,6 +271,7 @@ def calcular_kpis(df_a, df_r, df_e):
     kpis["cars_analise"] = df_a["Nº DO CAR"].nunique() if "Nº DO CAR" in df_a.columns else len(df_a)
     kpis["registros_analise"] = len(df_a)
     kpis["cars_retif"] = df_r["Código do CAR"].nunique() if "Código do CAR" in df_r.columns else len(df_r)
+    kpis["registros_retif"] = len(df_r)
     kpis["cars_eleg"] = df_e["Nº DO CAR"].nunique() if "Nº DO CAR" in df_e.columns else len(df_e)
     kpis["municipios_analise"] = df_a["Município"].nunique() if "Município" in df_a.columns else 0
     kpis["tecnicos"] = df_a["Técnico"].nunique() if "Técnico" in df_a.columns else 0
@@ -343,7 +344,8 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("CARs Analisados", fmt_int(kpis['cars_analise']),
               f"{fmt_int(kpis['registros_analise'])} registros")
-    c2.metric("CARs Retificados", fmt_int(kpis['cars_retif']))
+    c2.metric("CARs Retificados", fmt_int(kpis['cars_retif']),
+              f"{fmt_int(kpis['registros_retif'])} registros")
     c3.metric("Elegibilidade PRA", fmt_pct(kpis['pct_elegivel']),
               f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
     c4.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
