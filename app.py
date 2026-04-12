@@ -46,27 +46,14 @@ st.markdown("""
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-html, body, .stApp,
-h1, h2, h3, h4, h5, h6, p, div, li, a, label, td, th,
-span:not([class*="material"]),
-button, input, select, textarea, option,
-[data-testid="stMarkdownContainer"],
-[data-testid="stMetricValue"],
-[data-testid="stMetricDelta"],
-[data-testid="stMetricLabel"],
-[data-testid="stSidebar"],
-[data-testid="stDataFrame"],
-[data-testid="stTable"],
-[data-testid="stExpander"],
-[data-testid="stTabs"],
-.stMarkdown, .stAlert, .stCaption, .stToast {
-    font-family: 'Manrope', sans-serif !important;
+html, body, .stApp, .stApp * {
+    font-family: 'Manrope', sans-serif;
 }
-span[class*="material-symbols"],
-span[class*="material-icons"],
-.material-symbols-rounded,
-.material-symbols-outlined {
+[class*="material-symbols"],
+[class*="material-icons"] {
     font-family: 'Material Symbols Rounded' !important;
+    -webkit-font-feature-settings: 'liga';
+    font-feature-settings: 'liga';
 }
 </style>
 """, unsafe_allow_html=True)
