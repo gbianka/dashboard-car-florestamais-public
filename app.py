@@ -602,8 +602,9 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Produtividade por técnico
         st.markdown("##### Produtividade por Técnico")
-        if "Técnico" in df_a.columns:
-            prod = df_a["Técnico"].value_counts().head(15)
+        col_tecnico = col_existe(df_a, "Técnico") or col_existe(df_a, "tecnico")
+        if col_tecnico:
+            prod = df_a[col_tecnico].dropna().value_counts().head(15)
             fig_prod = px.bar(x=prod.index, y=prod.values,
                               color=prod.values, color_continuous_scale="Blues",
                               labels={"x": "Técnico", "y": "Análises"},
@@ -613,6 +614,8 @@ def render_tatico(df_a, df_r, df_e, kpis):
                                    coloraxis_showscale=False,
                                    margin=dict(l=40, r=20, t=20, b=80))
             st.plotly_chart(fig_prod, width="stretch")
+        else:
+            st.info(f"Coluna 'Técnico' não encontrada. Colunas disponíveis: {list(df_a.columns[:20])}")
 
         # Top municípios
         st.markdown("##### Condição por Município (Top 10)")
