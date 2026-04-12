@@ -622,6 +622,8 @@ def render_tatico(df_a, df_r, df_e, kpis):
         elif visao_tecnico == "Análise Externa / Interna":
             col_ext = "Técnico Análise Externa"
             col_int = "Técnico Análise Interna"
+            cols_tecnico = [c for c in df_a.columns if "écnico" in c or "ecnico" in c]
+            st.caption(f"Colunas com 'técnico': {cols_tecnico}")
             if col_ext in df_a.columns and col_int in df_a.columns:
                 ext = df_a[col_ext].dropna().value_counts()
                 inter = df_a[col_int].dropna().value_counts()
