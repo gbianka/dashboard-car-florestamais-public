@@ -809,7 +809,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
         total_e = len(df_e)
 
         e1, e2, e3, e4 = st.columns(4)
-        e1.metric("Total de Registros", fmt_int(kpis['registros_eleg']))
+        e1.metric("Total de Elegibilidades", fmt_int(kpis['registros_eleg']))
         e2.metric("CARs Únicos", fmt_int(kpis['cars_eleg']))
         e3.metric("UFs", fmt_int(kpis['ufs_eleg']))
         e4.metric("Elegibilidade PRA", fmt_pct(kpis['pct_elegivel']),
@@ -962,7 +962,7 @@ def _resumo_completude(df):
     cols_criticas = int((resumo["% Preenchido"] < 50).sum())
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total de Elegibilidades", fmt_int(total))
+    c1.metric("Total de Registros", fmt_int(total))
     c2.metric("Colunas 100% preenchidas", cols_completas)
     c3.metric("Colunas com vazios", cols_com_vazios)
     c4.metric("Colunas críticas (<50%)", cols_criticas, delta=f"-{cols_criticas}" if cols_criticas else "0",
