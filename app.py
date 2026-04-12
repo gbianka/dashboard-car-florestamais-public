@@ -443,8 +443,13 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 
     with col_a:
         st.markdown("#### Condição Final do Cadastro")
-        if "Condição_norm" in df_a.columns:
-            cond = df_a["Condição_norm"].value_counts()
+        _visao_cond = st.radio(
+            "Visão:", ["Normalizada", "Original"], horizontal=True,
+            key="cond_estrategico", label_visibility="collapsed",
+        )
+        _col_cond = "Condição_norm" if _visao_cond == "Normalizada" else "Condição final do cadastro"
+        if _col_cond in df_a.columns:
+            cond = df_a[_col_cond].value_counts()
             cores_cond = {
                 "Com pendências": COR["vermelho"], "Em conformidade": COR["verde_claro"],
                 "Aguard. regularização": COR["amarelo"], "Conformidade (CRA)": COR["verde_escuro"],
@@ -452,7 +457,8 @@ def render_estrategico(df_a, df_r, df_e, kpis):
             }
             fig_cond = px.pie(
                 values=cond.values, names=cond.index, hole=0.45,
-                color=cond.index, color_discrete_map=cores_cond,
+                color=cond.index,
+                color_discrete_map=cores_cond if _visao_cond == "Normalizada" else {},
             )
             fig_cond.update_traces(textinfo="percent+value", textposition="auto")
             fig_cond.update_layout(height=380, margin=dict(l=10, r=10, t=10, b=10),
@@ -740,17 +746,23 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Top municípios
         st.markdown("##### Condição por Município (Top 10)")
-        if "Município" in df_a.columns and "Condição_norm" in df_a.columns:
+        _visao_cond_t = st.radio(
+            "Visão:", ["Normalizada", "Original"], horizontal=True,
+            key="cond_tatico", label_visibility="collapsed",
+        )
+        _col_cond_t = "Condição_norm" if _visao_cond_t == "Normalizada" else "Condição final do cadastro"
+        if "Município" in df_a.columns and _col_cond_t in df_a.columns:
             top10 = df_a["Município"].value_counts().head(10).index
             df_t10 = df_a[df_a["Município"].isin(top10)]
-            cross = pd.crosstab(df_t10["Município"], df_t10["Condição_norm"])
+            cross = pd.crosstab(df_t10["Município"], df_t10[_col_cond_t])
             cross = cross.reindex(top10)
             cores_cn = {
                 "Com pendências": COR["vermelho"], "Em conformidade": COR["verde_claro"],
                 "Aguard. regularização": COR["amarelo"], "Conformidade (CRA)": COR["verde_escuro"],
                 "Conformidade (ativos)": COR["verde"], "Aprovado": COR["azul"], "Outros": COR["cinza"],
             }
-            fig_mc = px.bar(cross, barmode="stack", color_discrete_map=cores_cn)
+            fig_mc = px.bar(cross, barmode="stack",
+                           color_discrete_map=cores_cn if _visao_cond_t == "Normalizada" else {})
             fig_mc.update_layout(height=400, xaxis_tickangle=-45, legend=dict(font=dict(size=9)),
                                  margin=dict(l=40, r=20, t=20, b=80))
             st.plotly_chart(fig_mc, width="stretch")
@@ -1569,7 +1581,7 @@ def render_cars(df_a, df_r, df_e):
     all_cols = df_view.columns.tolist()
     default_cols = [c for c in [
         "Nº DO CAR", "Escopo", "Último Ciclo", "Município", "LOTE",
-        "Condição_norm", "Tipo de imóvel", "Área",
+        "Condição_norm", "Condição final do cadastro", "Tipo de imóvel", "Área",
         "Grau de Complexidade", "Status final",
     ] if c in all_cols]
 
@@ -1585,6 +1597,42 @@ def render_cars(df_a, df_r, df_e):
         hide_index=True,
         height=500,
     )
+
+    # ── Detalhe de um CAR ──
+    st.markdown("---")
+    with st.expander("🔍 Detalhe de um CAR — Todos os Dados do Consolidado", expanded=False):
+        cars_list = sorted(df_view["Nº DO CAR"].unique())
+        car_sel = st.selectbox(
+            "Selecione um CAR:", [""] + list(cars_list),
+            format_func=lambda x: "Escolha um CAR..." if x == "" else x,
+            key="car_detalhe_sel",
+        )
+
+        if car_sel:
+            registros = df_consol[df_consol["Nº DO CAR"] == car_sel]
+
+            if registros.empty:
+                st.warning("Nenhum registro encontrado para este CAR.")
+            else:
+                # Cabeçalho
+                _esc = registros["Escopo"].iloc[0]
+                _uc = registros["Último Ciclo"].iloc[0] if "Último Ciclo" in registros.columns else "—"
+                _n = len(registros)
+                h1, h2, h3 = st.columns(3)
+                h1.metric("Escopo", _esc)
+                h2.metric("Último Ciclo", str(int(_uc)) if pd.notna(_uc) else "—")
+                h3.metric("Registros", fmt_int(_n))
+
+                # Registros por Origem
+                _meta = ["Nº DO CAR", "Origem", "Escopo", "Último Ciclo"]
+                for origem in ["Análise", "Retificação", "Elegibilidade"]:
+                    df_orig = registros[registros["Origem"] == origem]
+                    if df_orig.empty:
+                        continue
+                    st.markdown(f"##### {origem} — {len(df_orig)} registro(s)")
+                    df_show = df_orig.drop(columns=[c for c in _meta if c in df_orig.columns])
+                    df_show = df_show.dropna(axis=1, how="all")
+                    st.dataframe(df_show, use_container_width=True, hide_index=True)
 
     # ── Distribuição por Escopo ──
     st.markdown("---")
@@ -1819,7 +1867,7 @@ def main():
     st.markdown("---")
     st.markdown(
         "<p style='text-align:center; color:#9E9E9E; font-size:0.8rem;'>"
-        "Dashboard CAR/PRA · Amazônia Legal · Gerado com Streamlit + Plotly"
+        "Dashboard Projeto Floresta+ · CAR/PRA - Amazônia Legal ·  Amazônia "
         "</p>", unsafe_allow_html=True
     )
 
