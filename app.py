@@ -358,7 +358,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     # ── Linha 1: Análise ──
     st.caption("Análise")
     a1, a2, a3, a4 = st.columns(4)
-    a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise']))
+    a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise'] + kpis['registros_retif'] + kpis['registros_eleg']))
     a2.metric("CARs Únicos", fmt_int(kpis['cars_analise']))
     a3.metric("Municípios", fmt_int(kpis['municipios_analise']))
     a4.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
