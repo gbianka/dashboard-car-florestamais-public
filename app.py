@@ -783,12 +783,15 @@ def _resumo_completude(df):
     if not com_vazios.empty:
         with st.expander(f"📋 Completude das colunas ({len(com_vazios)} com campos vazios)", expanded=False):
             st.dataframe(
-                com_vazios.style.background_gradient(
-                    subset=["% Preenchido"], cmap="RdYlGn", vmin=0, vmax=100
-                ),
+                com_vazios,
                 width="stretch",
                 hide_index=True,
                 height=min(400, 35 * len(com_vazios) + 40),
+                column_config={
+                    "% Preenchido": st.column_config.ProgressColumn(
+                        "% Preenchido", min_value=0, max_value=100, format="%.1f%%",
+                    ),
+                },
             )
 
 
