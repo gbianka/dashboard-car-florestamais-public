@@ -1842,10 +1842,10 @@ def _render_login():
         return True
 
     import base64, pathlib
-    _logo_path = pathlib.Path(__file__).parent / "assets" / "img" / "LOGO_FLORESTAMAIS_TRANSPARENTE_V1.svg"
-    if _logo_path.exists():
-        _logo_b64 = base64.b64encode(_logo_path.read_bytes()).decode()
-        _logo_src = f"data:image/svg+xml;base64,{_logo_b64}"
+    _logo_login = pathlib.Path(__file__).parent / "assets" / "img" / "Floresta-Logo" / "Floresta-Logo COR 2.png"
+    if _logo_login.exists():
+        _logo_b64 = base64.b64encode(_logo_login.read_bytes()).decode()
+        _logo_src = f"data:image/png;base64,{_logo_b64}"
     else:
         _logo_src = "https://www.florestamaisamazonia.org.br/wp-content/themes/tupi-florestamais/assets/img/logo_floresta_mono.png"
 
