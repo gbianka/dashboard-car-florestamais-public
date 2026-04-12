@@ -572,6 +572,10 @@ def render_estrategico(df_a, df_r, df_e, kpis):
                 x=m_a["Mês"], y=m_a["total"], mode="lines+markers",
                 name="Análise", line=dict(color=COR["verde_escuro"], width=3),
             ))
+            fig_tempo.add_trace(go.Bar(
+                x=m_a["Mês"], y=m_a["cars_unicos"], name="CARs únicos (Análise)",
+                marker_color=COR["verde_claro"], opacity=0.5,
+            ))
 
     # Retificação
     col_data_r = _achar_col_data(df_r)
