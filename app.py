@@ -65,9 +65,6 @@ import plotly.io as pio
 _font = dict(family=FONT_FAMILY)
 _plotly_template = pio.templates["plotly"]
 _plotly_template.layout.font = _font
-_plotly_template.layout.legend = dict(font=_font)
-_plotly_template.layout.xaxis = dict(tickfont=_font, titlefont=_font)
-_plotly_template.layout.yaxis = dict(tickfont=_font, titlefont=_font)
 pio.templates.default = "plotly"
 
 # ── Paleta de cores ──
