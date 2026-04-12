@@ -602,11 +602,11 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Produtividade por técnico
         st.markdown("##### Produtividade por Técnico")
-        if "Técnico" in df_a.columns:
-            prod = df_a["Técnico"].dropna().value_counts().head(15)
+        if "Técnico Vinculado" in df_a.columns:
+            prod = df_a["Técnico Vinculado"].dropna().value_counts().head(15)
             fig_prod = px.bar(x=prod.index, y=prod.values,
                               color=prod.values, color_continuous_scale="Blues",
-                              labels={"x": "Técnico", "y": "Análises"},
+                              labels={"x": "Técnico Vinculado", "y": "Análises"},
                               text=prod.values)
             fig_prod.update_traces(textposition="auto")
             fig_prod.update_layout(height=350, xaxis_tickangle=-45, showlegend=False,
@@ -614,7 +614,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
                                    margin=dict(l=40, r=20, t=20, b=80))
             st.plotly_chart(fig_prod, width="stretch")
         else:
-            st.info(f"Coluna 'Técnico' não encontrada. Colunas disponíveis: {list(df_a.columns[:20])}")
+            st.info(f"Coluna 'Técnico Vinculado' não encontrada. Colunas disponíveis: {list(df_a.columns[:20])}")
 
         # Top municípios
         st.markdown("##### Condição por Município (Top 10)")
