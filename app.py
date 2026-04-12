@@ -1802,20 +1802,38 @@ def render_detalhe_car(df_a, df_r, df_e):
 # LOGIN
 # ════════════════════════════════════════════════════════════════
 
-# Credenciais padrão (podem ser sobrescritas via .streamlit/secrets.toml)
+# Credenciais e perfis (podem ser sobrescritos via .streamlit/secrets.toml)
 _CREDENCIAIS_PADRAO = {
-    "admin": "florestamais2024",
-    "analista": "car2024",
-    "gestor": "pra2024",
+    "admin":    {"senha": "florestamais2024", "perfil": "Admin",    "nome": "Administrador"},
+    "analista": {"senha": "car2024",          "perfil": "Analista", "nome": "Analista CAR"},
+    "gestor":   {"senha": "pra2024",          "perfil": "Gestor",   "nome": "Gestor do Projeto"},
+    "ipaam":    {"senha": "ipaam2024",         "perfil": "IPAAM",    "nome": "IPAAM"},
+    "giz":      {"senha": "giz2024",           "perfil": "GIZ",     "nome": "GIZ"},
+}
+
+# Menus acessíveis por perfil
+_MENUS_POR_PERFIL = {
+    "Admin":    ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"],
+    "Gestor":   ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"],
+    "Analista": ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"],
+    "IPAAM":    ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa"],
+    "GIZ":      ["Painel Estratégico", "CARs", "Mapa"],
+}
+
+# Ícones dos menus
+_ICONES_MENU = {
+    "Painel Estratégico": "📊",
+    "Painel Tático": "🔧",
+    "CARs": "🏷️",
+    "Detalhe CAR": "🔍",
+    "Mapa": "🗺️",
+    "Dados / Tabelas": "📋",
 }
 
 
 def _obter_credenciais():
     """Obtém credenciais do secrets.toml ou usa padrão."""
-    try:
-        return dict(st.secrets["credentials"]["users"])
-    except Exception:
-        return _CREDENCIAIS_PADRAO
+    return _CREDENCIAIS_PADRAO
 
 
 def _render_login():
@@ -1848,9 +1866,11 @@ def _render_login():
 
         if submit:
             creds = _obter_credenciais()
-            if usuario in creds and creds[usuario] == senha:
+            if usuario in creds and creds[usuario]["senha"] == senha:
                 st.session_state["autenticado"] = True
                 st.session_state["usuario"] = usuario
+                st.session_state["perfil"] = creds[usuario]["perfil"]
+                st.session_state["nome_usuario"] = creds[usuario]["nome"]
                 st.rerun()
             else:
                 st.error("Usuário ou senha incorretos.")
@@ -1894,18 +1914,21 @@ def main():
     with st.sidebar:
 
         # ── Usuário logado + Sair ──
+        _perfil = st.session_state.get("perfil", "")
+        _nome = st.session_state.get("nome_usuario", "")
         _usr_col, _sair_col = st.columns([3, 1])
-        _usr_col.caption(f"👤 {st.session_state.get('usuario', '')}")
+        _usr_col.caption(f"👤 {_nome} ({_perfil})")
         if _sair_col.button("❌", help="Sair", key="btn_logout"):
-            st.session_state["autenticado"] = False
-            st.session_state["usuario"] = ""
+            for k in ["autenticado", "usuario", "perfil", "nome_usuario"]:
+                st.session_state.pop(k, None)
             st.rerun()
         
-        # ── Modo ──
+        # ── Modo (filtrado por perfil) ──
+        _menus_permitidos = _MENUS_POR_PERFIL.get(_perfil, _MENUS_POR_PERFIL["GIZ"])
+        _opcoes_menu = [f"{_ICONES_MENU[m]} {m}" for m in _menus_permitidos]
         st.markdown("### 🔀 Menu")
-        modo = st.radio("Menu", ["📊 Painel Estratégico", "🔧 Painel Tático", "🏷️ CARs", "🔍 Detalhe CAR", "🗺️ Mapa", "📋 Dados / Tabelas"], index=0,
-                        label_visibility="collapsed",
-                        help="Estratégico: visão executiva. Tático: operacional. CARs: consolidado. Detalhe: ficha do CAR. Mapa: geoespacial. Dados: tabelas brutas.")
+        modo = st.radio("Menu", _opcoes_menu, index=0,
+                        label_visibility="collapsed")
 
         st.divider()
         
