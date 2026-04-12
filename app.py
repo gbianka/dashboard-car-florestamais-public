@@ -40,6 +40,18 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Fonte Manrope ──
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap');
+html, body, [class*="st-"], .stApp, .stMarkdown, .stMetric,
+.stDataFrame, .stTable, button, input, select, textarea,
+[data-testid="stSidebar"], [data-testid="stHeader"] {
+    font-family: 'Manrope', sans-serif !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ── Paleta de cores ──
 COR = {
     "verde_escuro": "#1B5E20", "verde": "#2E7D32", "verde_claro": "#66BB6A",
