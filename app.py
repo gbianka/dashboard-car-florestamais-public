@@ -614,10 +614,11 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 horizontal=True, key="radio_tecnico",
             )
             prod = df_a[subtab_tecnico].dropna().value_counts().head(15)
-            fig_prod = px.bar(x=prod.index, y=prod.values,
+            df_prod = pd.DataFrame({"Técnico": prod.index, "Análises": prod.values})
+            df_prod["label"] = df_prod["Análises"].apply(fmt_int)
+            fig_prod = px.bar(df_prod, x="Técnico", y="Análises",
                               color_discrete_sequence=[cols_disponiveis[subtab_tecnico]],
-                              labels={"x": subtab_tecnico, "y": "Análises"},
-                              text=[fmt_int(v) for v in prod.values])
+                              text="label")
             fig_prod.update_traces(textposition="auto")
             fig_prod.update_layout(height=350, xaxis_tickangle=-45, showlegend=False,
                                    margin=dict(l=40, r=20, t=20, b=80))
