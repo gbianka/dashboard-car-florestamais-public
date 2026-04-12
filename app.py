@@ -361,7 +361,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise'] + kpis['registros_retif'] + kpis['registros_eleg']))
     a2.metric("CARs Distintos", fmt_int(kpis['total_distintos']))
     a3.metric("Municípios", fmt_int(kpis['municipios_analise']))
-    a4.metric("Técnicos", fmt_int(kpis['tecnicos']))
+    a4.metric("UFs Elegibilidade", fmt_int(kpis['ufs_eleg']))
 
     # ── Linha 2: Distintos por Escopo ──
     st.caption("CARs Distintos por Escopo")
@@ -382,7 +382,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
               delta=f"-{fmt_pct(kpis['pct_sem_pendencia'])} sem", delta_color="inverse")
     c6.metric("Média de Ciclos", fmt_dec(kpis['media_ciclos'], 2))
     c7.metric("1º Ciclo", fmt_pct(kpis['pct_1ciclo']))
-    c8.metric("UFs Elegibilidade", fmt_int(kpis['ufs_eleg']))
+    c8.metric("Técnicos", fmt_int(kpis['tecnicos']))
 
     st.divider()
 
