@@ -156,6 +156,16 @@ def aplicar_filtros(df_a, df_r, df_e, filtros):
     """Aplica filtros globais aos 3 DataFrames."""
     fa, fr, fe = df_a.copy(), df_r.copy(), df_e.copy()
 
+    # Código do CAR (busca parcial, case-insensitive)
+    if filtros.get("car"):
+        busca_car = filtros["car"].strip()
+        if "Nº DO CAR" in fa.columns:
+            fa = fa[fa["Nº DO CAR"].astype(str).str.contains(busca_car, case=False, na=False)]
+        if "Código do CAR" in fr.columns:
+            fr = fr[fr["Código do CAR"].astype(str).str.contains(busca_car, case=False, na=False)]
+        if "Nº DO CAR" in fe.columns:
+            fe = fe[fe["Nº DO CAR"].astype(str).str.contains(busca_car, case=False, na=False)]
+
     # Município
     if filtros.get("municipios"):
         muns = filtros["municipios"]
@@ -837,6 +847,24 @@ def _render_tabela_aba(df, label_car_col, colunas_chave=None):
     )
 
 
+def _alerta_car_fora_padrao(df, col_car):
+    """Exibe alerta se existem códigos de CAR fora do padrão (não começam com AM-)."""
+    if col_car not in df.columns:
+        return
+    cars = df[col_car].dropna().astype(str)
+    fora_padrao = cars[~cars.str.startswith("AM-")]
+    if fora_padrao.empty:
+        return
+    n = len(fora_padrao)
+    exemplos = fora_padrao.unique()[:5]
+    lista = ", ".join(f"`{c}`" for c in exemplos)
+    extra = f" e mais {n - 5} outros" if n > 5 else ""
+    st.warning(
+        f"**{n} registro(s) com código de CAR fora do padrão** (não começam com `AM-`): "
+        f"{lista}{extra}"
+    )
+
+
 def render_dados_tabela(df_a, df_r, df_e):
     """Renderiza a página de visualização dos dados em tabela para normalização."""
     st.markdown("### 📋 Dados em Tabela — Normalização e Conferência")
@@ -851,6 +879,7 @@ def render_dados_tabela(df_a, df_r, df_e):
     # ── Aba Análise ──
     with tab_analise:
         st.markdown("#### Análise CAR")
+        _alerta_car_fora_padrao(df_a, "Nº DO CAR")
         colunas_chave_a = [
             "Nº DO CAR", "Técnico", "Município", "LOTE", "Grau de Complexidade",
             "Área", "Tipo de imóvel", "Condição final do cadastro",
@@ -864,6 +893,7 @@ def render_dados_tabela(df_a, df_r, df_e):
     # ── Aba Retificação ──
     with tab_retif:
         st.markdown("#### Retificação / Inscrição CAR")
+        _alerta_car_fora_padrao(df_r, "Código do CAR")
         colunas_chave_r = [
             "Código do CAR", "Município", "Lote", "Técnico(a) Responsável",
             "Status de Retificação", "Tipo de Atendimento",
@@ -879,6 +909,7 @@ def render_dados_tabela(df_a, df_r, df_e):
     # ── Aba Elegibilidade ──
     with tab_eleg:
         st.markdown("#### Elegibilidade CAR")
+        _alerta_car_fora_padrao(df_e, "Nº DO CAR")
         colunas_chave_e = [
             "Nº DO CAR", "Município", "UF", "Elegibilidade",
             "Status do CAR", "Área do Imóvel", "MF",
@@ -982,6 +1013,11 @@ def main():
         st.markdown("### 🎯 Filtros")
 
         filtros = {}
+
+        # Código do CAR
+        filtros["car"] = st.text_input("Código do CAR",
+                                       placeholder="Ex: AM-1300060-...",
+                                       help="Filtre por código completo ou parcial do CAR")
 
         # Município
         if "Município" in df_a_raw.columns:
