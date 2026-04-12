@@ -42,15 +42,23 @@ st.set_page_config(
 
 # ── Fonte Manrope ──
 st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap');
-html, body, [class*="st-"], .stApp, .stMarkdown, .stMetric,
-.stDataFrame, .stTable, button, input, select, textarea,
-[data-testid="stSidebar"], [data-testid="stHeader"] {
+*, *::before, *::after {
     font-family: 'Manrope', sans-serif !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
+FONT_FAMILY = "Manrope, sans-serif"
+
+# ── Template Plotly com fonte Manrope ──
+import plotly.io as pio
+_plotly_template = pio.templates["plotly"]
+_plotly_template.layout.font = dict(family=FONT_FAMILY)
+pio.templates.default = "plotly"
 
 # ── Paleta de cores ──
 COR = {
@@ -992,9 +1000,9 @@ def main():
     # ── Cabeçalho ──
     st.markdown("""
     <div style="background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 50%, #1565C0 100%);
-                padding: 1.2rem 2rem; border-radius: 12px; margin-bottom: 1rem;">
-        <h1 style="color: white; margin: 0; font-size: 1.8rem;">🌿 Dashboard — Projeto CAR / PRA</h1>
-        <p style="color: rgba(255,255,255,0.85); margin: 0.3rem 0 0 0; font-size: 0.95rem;">
+                padding: 1.2rem 2rem; border-radius: 12px; margin-bottom: 1rem; font-family: Manrope, sans-serif;">
+        <h1 style="color: white; margin: 0; font-size: 1.8rem; font-family: Manrope, sans-serif;">🌿 Dashboard — Projeto CAR / PRA</h1>
+        <p style="color: rgba(255,255,255,0.85); margin: 0.3rem 0 0 0; font-size: 0.95rem; font-family: Manrope, sans-serif;">
             Análise de CAR · Retificação · Elegibilidade PRA — Amazônia Legal
         </p>
     </div>
