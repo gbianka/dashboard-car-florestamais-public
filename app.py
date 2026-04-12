@@ -1555,9 +1555,9 @@ def render_cars(df_a, df_r, df_e):
     # ── KPIs (refletem filtros) ──
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("CARs Únicos", fmt_int(len(df_view)))
-    c2.metric("Em Análise", fmt_int(len(df_view[df_view["Escopo"].str.contains("Análise")])))
-    c3.metric("Em Retificação", fmt_int(len(df_view[df_view["Escopo"].str.contains("Retificação")])))
-    c4.metric("Em Elegibilidade", fmt_int(len(df_view[df_view["Escopo"].str.contains("Elegibilidade")])))
+    c2.metric("Análise", fmt_int(len(df_view[df_view["Escopo"].str.contains("Análise")])))
+    c3.metric("Retificação", fmt_int(len(df_view[df_view["Escopo"].str.contains("Retificação")])))
+    c4.metric("Elegibilidade", fmt_int(len(df_view[df_view["Escopo"].str.contains("Elegibilidade")])))
 
     if escopo_sel or busca_car:
         st.caption(f"🔍 Exibindo {fmt_int(len(df_view))} de {fmt_int(len(df_cars))} CARs")
