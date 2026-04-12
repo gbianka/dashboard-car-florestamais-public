@@ -538,31 +538,74 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 
     # ── Evolução temporal ──
     st.markdown("#### 📈 Evolução Temporal")
-    if "Data fim" in df_a.columns:
-        df_tempo = df_a.dropna(subset=["Data fim"]).copy()
-        if not df_tempo.empty:
-            df_tempo["Mês"] = df_tempo["Data fim"].dt.to_period("M").astype(str)
-            mensal = df_tempo.groupby("Mês").agg(
-                total=("Nº DO CAR", "count"),
-                cars_unicos=("Nº DO CAR", "nunique"),
-            ).reset_index()
-            fig_tempo = go.Figure()
-            fig_tempo.add_trace(go.Scatter(
-                x=mensal["Mês"], y=mensal["total"], mode="lines+markers",
-                name="Total análises", line=dict(color=COR["azul"], width=3),
-                fill="tozeroy", fillcolor="rgba(21,101,192,0.08)",
-            ))
-            fig_tempo.add_trace(go.Bar(
-                x=mensal["Mês"], y=mensal["cars_unicos"], name="CARs únicos",
-                marker_color=COR["verde_claro"], opacity=0.6,
-            ))
-            fig_tempo.update_layout(
-                height=380, xaxis_tickangle=-45,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02),
-                margin=dict(l=40, r=20, t=40, b=80),
-            )
-            st.plotly_chart(fig_tempo, width="stretch")
 
+    def _achar_col_data(df, preferidas=["Data fim", "Data início"]):
+        for c in preferidas:
+            if c in df.columns:
+                return c
+        for c in df.columns:
+            if "data" in c.lower():
+                return c
+        return None
+
+    def _agrupar_mensal(df, col_data, col_car):
+        tmp = df.dropna(subset=[col_data]).copy()
+        tmp[col_data] = pd.to_datetime(tmp[col_data], errors="coerce")
+        tmp = tmp.dropna(subset=[col_data])
+        if tmp.empty:
+            return None
+        tmp["Mês"] = tmp[col_data].dt.to_period("M").astype(str)
+        return tmp.groupby("Mês").agg(
+            total=(col_car, "count"),
+            cars_unicos=(col_car, "nunique"),
+        ).reset_index()
+
+    fig_tempo = go.Figure()
+    _tem_dados = False
+
+    # Análise
+    if "Data fim" in df_a.columns:
+        m_a = _agrupar_mensal(df_a, "Data fim", "Nº DO CAR")
+        if m_a is not None and not m_a.empty:
+            _tem_dados = True
+            fig_tempo.add_trace(go.Scatter(
+                x=m_a["Mês"], y=m_a["total"], mode="lines+markers",
+                name="Análise", line=dict(color=COR["verde_escuro"], width=3),
+            ))
+
+    # Retificação
+    col_data_r = _achar_col_data(df_r)
+    col_car_r = "Código do CAR" if "Código do CAR" in df_r.columns else "Nº DO CAR"
+    if col_data_r and col_car_r in df_r.columns:
+        m_r = _agrupar_mensal(df_r, col_data_r, col_car_r)
+        if m_r is not None and not m_r.empty:
+            _tem_dados = True
+            fig_tempo.add_trace(go.Scatter(
+                x=m_r["Mês"], y=m_r["total"], mode="lines+markers",
+                name="Retificação", line=dict(color=COR["azul"], width=3),
+            ))
+
+    # Elegibilidade
+    col_data_e = _achar_col_data(df_e)
+    if col_data_e and "Nº DO CAR" in df_e.columns:
+        m_e = _agrupar_mensal(df_e, col_data_e, "Nº DO CAR")
+        if m_e is not None and not m_e.empty:
+            _tem_dados = True
+            fig_tempo.add_trace(go.Scatter(
+                x=m_e["Mês"], y=m_e["total"], mode="lines+markers",
+                name="Elegibilidade", line=dict(color=COR["laranja"], width=3),
+            ))
+
+    if _tem_dados:
+        fig_tempo.update_layout(
+            height=400, xaxis_tickangle=-45,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            margin=dict(l=40, r=20, t=40, b=80),
+            yaxis_title="Registros",
+        )
+        st.plotly_chart(fig_tempo, width="stretch")
+    else:
+        st.info("Sem dados de datas para gerar evolução temporal.")
 
 # ════════════════════════════════════════════════════════════════
 # §7  MODO TÁTICO
