@@ -623,7 +623,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
             col_ext = "Técnico Análise Externa"
             col_int = "Técnico Análise Interna"
             if col_ext in df_a.columns and col_int in df_a.columns:
-                st.caption(f"Ext preenchidos: {df_a[col_ext].notna().sum()} | Int preenchidos: {df_a[col_int].notna().sum()}")
+                st.caption(f"Ext notna: {df_a[col_ext].notna().sum()} | dtype: {df_a[col_ext].dtype} | sample: {df_a[col_ext].head(5).tolist()}")
                 ext = df_a[col_ext].dropna().value_counts()
                 inter = df_a[col_int].dropna().value_counts()
                 tecnicos_todos = sorted(set(ext.index) | set(inter.index))
