@@ -274,8 +274,22 @@ def calcular_kpis(df_a, df_r, df_e):
     kpis["cars_retif"] = df_r["Código do CAR"].nunique() if "Código do CAR" in df_r.columns else len(df_r)
     kpis["registros_retif"] = len(df_r)
     kpis["cars_eleg"] = df_e["Nº DO CAR"].nunique() if "Nº DO CAR" in df_e.columns else len(df_e)
+    kpis["registros_eleg"] = len(df_e)
     kpis["municipios_analise"] = df_a["Município"].nunique() if "Município" in df_a.columns else 0
-    kpis["tecnicos"] = df_a["Técnico"].nunique() if "Técnico" in df_a.columns else 0
+    kpis["municipios_retif"] = df_r["Município"].nunique() if "Município" in df_r.columns else 0
+    kpis["municipios_eleg"] = df_e["Município"].nunique() if "Município" in df_e.columns else 0
+    kpis["tecnicos"] = df_a["Técnico Vinculado"].nunique() if "Técnico Vinculado" in df_a.columns else 0
+    kpis["ufs_eleg"] = df_e["UF"].nunique() if "UF" in df_e.columns else 0
+
+    # Retificação
+    if "Status de Retificação" in df_r.columns:
+        sr = df_r["Status de Retificação"].value_counts()
+        kpis["retif_retificados"] = int(sr.get("Retificado", 0))
+        kpis["retif_finalizados"] = int(sr.get("Finalizado", 0))
+        kpis["pct_retificado"] = kpis["retif_retificados"] / max(len(df_r), 1) * 100
+    else:
+        kpis["retif_retificados"] = kpis["retif_finalizados"] = 0
+        kpis["pct_retificado"] = 0
 
     # Ciclos
     if "Ciclo de análise" in df_a.columns and "Nº DO CAR" in df_a.columns:
@@ -734,6 +748,15 @@ def render_tatico(df_a, df_r, df_e, kpis):
         st.markdown("### Detalhamento — Retificação de CAR")
         total_r = len(df_r)
 
+        r1, r2, r3, r4 = st.columns(4)
+        r1.metric("Total de Registros", fmt_int(kpis['registros_retif']))
+        r2.metric("CARs Únicos", fmt_int(kpis['cars_retif']))
+        r3.metric("Municípios", fmt_int(kpis['municipios_retif']))
+        r4.metric("Retificados", fmt_pct(kpis['pct_retificado']),
+                  f"{fmt_int(kpis['retif_retificados'])} CARs")
+
+        st.divider()
+
         cr1, cr2 = st.columns(2)
         with cr1:
             if "Status de Retificação" in df_r.columns:
@@ -784,6 +807,15 @@ def render_tatico(df_a, df_r, df_e, kpis):
     with tab_eleg:
         st.markdown("### Detalhamento — Elegibilidade para PRA")
         total_e = len(df_e)
+
+        e1, e2, e3, e4 = st.columns(4)
+        e1.metric("Total de Registros", fmt_int(kpis['registros_eleg']))
+        e2.metric("CARs Únicos", fmt_int(kpis['cars_eleg']))
+        e3.metric("UFs", fmt_int(kpis['ufs_eleg']))
+        e4.metric("Elegibilidade PRA", fmt_pct(kpis['pct_elegivel']),
+                  f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
+
+        st.divider()
 
         # Critérios
         st.markdown("##### Critérios de Elegibilidade")
