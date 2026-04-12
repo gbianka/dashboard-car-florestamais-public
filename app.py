@@ -602,9 +602,8 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         # Produtividade por técnico
         st.markdown("##### Produtividade por Técnico")
-        col_tecnico = col_existe(df_a, "Técnico") or col_existe(df_a, "tecnico")
-        if col_tecnico:
-            prod = df_a[col_tecnico].dropna().value_counts().head(15)
+        if "Técnico" in df_a.columns:
+            prod = df_a["Técnico"].dropna().value_counts().head(15)
             fig_prod = px.bar(x=prod.index, y=prod.values,
                               color=prod.values, color_continuous_scale="Blues",
                               labels={"x": "Técnico", "y": "Análises"},
