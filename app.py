@@ -389,51 +389,49 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     st.divider()
 
     # ── Funil + Sankey ──
+    _E = "Painel Estratégico"
     col_left, col_right = st.columns([1, 1])
 
     with col_left:
-        st.markdown("#### Funil do Projeto")
-        fig_funil = go.Figure(go.Funnel(
-            y=["Análise de CAR", "Retificação de CAR", "Elegibilidade PRA"],
-            x=[kpis["cars_analise"], kpis["cars_retif"], kpis["cars_eleg"]],
-            textposition="inside", textinfo="value+percent initial",
-            marker=dict(color=[COR["azul"], COR["laranja"], COR["verde_claro"]]),
-        ))
-        fig_funil.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
-        st.plotly_chart(fig_funil, width="stretch")
+        if _pode_ver(_E, "funil"):
+            st.markdown("#### Funil do Projeto")
+            fig_funil = go.Figure(go.Funnel(
+                y=["Análise de CAR", "Retificação de CAR", "Elegibilidade PRA"],
+                x=[kpis["cars_analise"], kpis["cars_retif"], kpis["cars_eleg"]],
+                textposition="inside", textinfo="value+percent initial",
+                marker=dict(color=[COR["azul"], COR["laranja"], COR["verde_claro"]]),
+            ))
+            fig_funil.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig_funil, width="stretch")
 
     with col_right:
-        st.markdown("#### Fluxo entre Escopos (Sankey)")
-        node_labels = ["Análise", "Só Análise", "Retificação", "Elegibilidade",
-                       "Análise+Retif", "Análise+Eleg", "Todos 3"]
-        node_values = [
-            kpis["cars_analise"],
-            kpis["so_analise"],
-            kpis["cars_retif"],
-            kpis["cars_eleg"],
-            kpis["a_r"],
-            kpis["a_e"],
-            kpis["todos_3"],
-        ]
-        node_labels_fmt = [f"{l} ({fmt_int(v)})" for l, v in zip(node_labels, node_values)]
-        fig_sankey = go.Figure(go.Sankey(
-            node=dict(
-                pad=18, thickness=22,
-                label=node_labels_fmt,
-                color=[COR["azul"], COR["cinza"], COR["laranja"],
-                       COR["verde_claro"], COR["amarelo"], COR["verde"], COR["verde_escuro"]],
-            ),
-            link=dict(
-                source=[0, 0, 0, 0],
-                target=[1, 4, 5, 6],
-                value=[kpis["so_analise"], kpis["a_r"], kpis["a_e"], kpis["todos_3"]],
-                color=["rgba(158,158,158,0.25)", "rgba(255,193,7,0.3)",
-                       "rgba(102,187,106,0.3)", "rgba(27,94,32,0.35)"],
-            ),
-            textfont=dict(color="black", size=12),
-        ))
-        fig_sankey.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
-        st.plotly_chart(fig_sankey, width="stretch")
+        if _pode_ver(_E, "sankey"):
+            st.markdown("#### Fluxo entre Escopos (Sankey)")
+            node_labels = ["Análise", "Só Análise", "Retificação", "Elegibilidade",
+                           "Análise+Retif", "Análise+Eleg", "Todos 3"]
+            node_values = [
+                kpis["cars_analise"], kpis["so_analise"], kpis["cars_retif"],
+                kpis["cars_eleg"], kpis["a_r"], kpis["a_e"], kpis["todos_3"],
+            ]
+            node_labels_fmt = [f"{l} ({fmt_int(v)})" for l, v in zip(node_labels, node_values)]
+            fig_sankey = go.Figure(go.Sankey(
+                node=dict(
+                    pad=18, thickness=22,
+                    label=node_labels_fmt,
+                    color=[COR["azul"], COR["cinza"], COR["laranja"],
+                           COR["verde_claro"], COR["amarelo"], COR["verde"], COR["verde_escuro"]],
+                ),
+                link=dict(
+                    source=[0, 0, 0, 0],
+                    target=[1, 4, 5, 6],
+                    value=[kpis["so_analise"], kpis["a_r"], kpis["a_e"], kpis["todos_3"]],
+                    color=["rgba(158,158,158,0.25)", "rgba(255,193,7,0.3)",
+                           "rgba(102,187,106,0.3)", "rgba(27,94,32,0.35)"],
+                ),
+                textfont=dict(color="black", size=12),
+            ))
+            fig_sankey.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig_sankey, width="stretch")
 
     st.divider()
 
@@ -1811,14 +1809,73 @@ _CREDENCIAIS_PADRAO = {
     "giz":      {"senha": "giz2024",           "perfil": "GIZ",     "nome": "GIZ"},
 }
 
+
+TODOS_OS_MENUS = ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"]
+
+TODAS_AS_SECOES = {
+    "Painel Estratégico": ["kpis", "funil", "sankey", "condicao", "elegibilidade", "mapa_territorial", "evolucao_temporal"],
+    "Painel Tático":     ["analise", "retificacao", "elegibilidade", "gargalos"],
+    "CARs":              ["kpis", "filtros", "tabela", "grafico_escopo", "exportar"],
+    "Detalhe CAR":       ["busca", "ficha"],
+    "Mapa":              ["upload", "mapa", "resumo"],
+    "Dados / Tabelas":   ["analise", "retificacao", "elegibilidade"],
+}
+
 # Menus acessíveis por perfil
 _MENUS_POR_PERFIL = {
     "Admin":    ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"],
-    "Gestor":   ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"],
-    "Analista": ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"],
-    "IPAAM":    ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa"],
+    "Gestor":   ["Painel Estratégico", "Painel Tático", "CARs", "Mapa"],
+    "Analista": ["Painel Estratégico", "Painel Tático", "CARs", "Mapa"],
+    "IPAAM":    ["Painel Estratégico", "Painel Tático", "CARs", "Mapa"],
     "GIZ":      ["Painel Estratégico", "CARs", "Mapa"],
 }
+
+# Seções visíveis dentro de cada página, por perfil
+_SECOES_POR_PERFIL = {
+    "Admin": {
+        "Painel Estratégico": ["kpis", "funil", "sankey", "condicao", "elegibilidade", "mapa_territorial", "evolucao_temporal"],
+        "Painel Tático":     ["analise", "retificacao", "elegibilidade", "gargalos"],
+        "CARs":              ["kpis", "filtros", "tabela", "grafico_escopo", "exportar"],
+        "Detalhe CAR":       ["busca", "ficha"],
+        "Mapa":              ["upload", "mapa", "resumo"],
+        "Dados / Tabelas":   ["analise", "retificacao", "elegibilidade"],
+    },
+    "Gestor": {
+        "Painel Estratégico": ["kpis", "funil", "sankey", "condicao", "elegibilidade", "mapa_territorial", "evolucao_temporal"],
+        "Painel Tático":     ["analise", "retificacao", "elegibilidade", "gargalos"],
+        "CARs":              ["kpis", "filtros", "tabela", "grafico_escopo", "exportar"],
+        "Detalhe CAR":       ["busca", "ficha"],
+        "Mapa":              ["upload", "mapa", "resumo"],
+        "Dados / Tabelas":   ["analise", "retificacao", "elegibilidade"],
+    },
+    "Analista": {
+        "Painel Estratégico": ["kpis", "funil", "sankey", "condicao", "elegibilidade", "mapa_territorial", "evolucao_temporal"],
+        "Painel Tático":     ["analise", "retificacao", "elegibilidade", "gargalos"],
+        "CARs":              ["kpis", "filtros", "tabela", "grafico_escopo", "exportar"],
+        "Detalhe CAR":       ["busca", "ficha"],
+        "Mapa":              ["upload", "mapa", "resumo"],
+        "Dados / Tabelas":   ["analise", "retificacao", "elegibilidade"],
+    },
+    "IPAAM": {
+        "Painel Estratégico": ["kpis", "funil", "condicao", "elegibilidade", "mapa_territorial"],
+        "Painel Tático":     ["analise", "retificacao", "elegibilidade"],
+        "CARs":              ["kpis", "filtros", "tabela", "grafico_escopo"],
+        "Detalhe CAR":       ["busca", "ficha"],
+        "Mapa":              ["upload", "mapa", "resumo"],
+    },
+    "GIZ": {
+        "Painel Estratégico": ["kpis", "funil", "condicao", "elegibilidade", "mapa_territorial"],
+        "CARs":              ["kpis", "tabela", "grafico_escopo"],
+        "Mapa":              ["upload", "mapa", "resumo"],
+    },
+}
+
+
+def _pode_ver(pagina, secao):
+    """Verifica se o perfil logado pode ver a seção indicada."""
+    perfil = st.session_state.get("perfil", "GIZ")
+    secoes = _SECOES_POR_PERFIL.get(perfil, {}).get(pagina, [])
+    return secao in secoes
 
 # Ícones dos menus
 _ICONES_MENU = {
