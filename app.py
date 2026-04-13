@@ -373,14 +373,14 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     a2.metric("CARs Distintos", fmt_int(kpis['total_distintos']))
     a3.metric("Municípios", fmt_int(kpis['municipios_analise']))
     a4.metric("UFs", fmt_int(kpis['ufs_eleg']))
-    a4.metric("Rtificação xxxxx", fmt_int(kpis['cars_retif_retificados']))
+    a4.metric("Retificados apenas", fmt_int(kpis['cars_retif_retificados']))
 
     # ── Linha 2: Distintos por Escopo ──
     st.caption("CARs Distintos por Escopo")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Análise", fmt_int(kpis['cars_analise']),
               f"{fmt_int(kpis['registros_analise'])} registros")
-    c2.metric("Retificação", fmt_int(kpis['cars_retif_retificados']),
+    c2.metric("Retificação", fmt_int(kpis['cars_retif']),
               f"{fmt_int(kpis['cars_retif'])} CARs no escopo")
     c3.metric("Elegibilidade", fmt_int(kpis['cars_eleg']),
               f"{fmt_int(kpis['registros_eleg'])} registros")
@@ -407,7 +407,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
             st.markdown("#### Funil do Projeto")
             fig_funil = go.Figure(go.Funnel(
                 y=["Análise de CAR", "Retificação de CAR", "Elegibilidade PRA"],
-                x=[kpis["cars_analise"], kpis["cars_retif_retificados"], kpis["cars_eleg"]],
+                x=[kpis["cars_analise"], kpis["cars_retif"], kpis["cars_eleg"]],
                 textposition="inside", textinfo="value+percent initial",
                 marker=dict(color=[COR["azul"], COR["laranja"], COR["verde_claro"]]),
             ))
@@ -417,11 +417,23 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     with col_right:
         if _pode_ver(_E, "sankey"):
             st.markdown("#### Fluxo entre Escopos")
-            node_labels = ["Análise", "Só Análise", "Retificação", "Elegibilidade",
+            # Cruzamento local: apenas CARs efetivamente retificados
+            _sA = set(df_a["Nº DO CAR"].dropna().unique()) if "Nº DO CAR" in df_a.columns else set()
+            if "Status de Retificação" in df_r.columns and "Código do CAR" in df_r.columns:
+                _sR = set(df_r[df_r["Status de Retificação"] == "Retificado"]["Código do CAR"].dropna().unique())
+            else:
+                _sR = set(df_r["Código do CAR"].dropna().unique()) if "Código do CAR" in df_r.columns else set()
+            _sE = set(df_e["Nº DO CAR"].dropna().unique()) if "Nº DO CAR" in df_e.columns else set()
+            _so_a = len(_sA - _sR - _sE)
+            _a_r  = len(_sA & _sR - _sE)
+            _a_e  = len(_sA & _sE - _sR)
+            _t3   = len(_sA & _sR & _sE)
+
+            node_labels = ["Análise", "Só Análise", "Retificados", "Elegibilidade",
                            "Análise+Retif", "Análise+Eleg", "Todos 3"]
             node_values = [
-                kpis["cars_analise"], kpis["so_analise"], kpis["cars_retif_retificados"],
-                kpis["cars_eleg"], kpis["a_r"], kpis["a_e"], kpis["todos_3"],
+                kpis["cars_analise"], _so_a, kpis["cars_retif_retificados"],
+                kpis["cars_eleg"], _a_r, _a_e, _t3,
             ]
             node_labels_fmt = [f"{l} ({fmt_int(v)})" for l, v in zip(node_labels, node_values)]
             fig_sankey = go.Figure(go.Sankey(
@@ -434,7 +446,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
                 link=dict(
                     source=[0, 0, 0, 0],
                     target=[1, 4, 5, 6],
-                    value=[kpis["so_analise"], kpis["a_r"], kpis["a_e"], kpis["todos_3"]],
+                    value=[_so_a, _a_r, _a_e, _t3],
                     color=["rgba(158,158,158,0.25)", "rgba(255,193,7,0.3)",
                            "rgba(102,187,106,0.3)", "rgba(27,94,32,0.35)"],
                 ),
