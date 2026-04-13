@@ -2894,13 +2894,19 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
             _res = _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw,
                                           progress_cb=lambda p, m: _pg.progress(float(p), text=m))
             _pg.empty()
-            _errs = _res.pop("_erros", {})
-            _avss = _res.pop("_avisos", {})
+            st.session_state["sicar_download_resultado"] = _res
+            st.rerun()
+
+        # Exibir resultado do último download (persiste após rerun)
+        if "sicar_download_resultado" in st.session_state:
+            _res_prev = st.session_state["sicar_download_resultado"]
+            _errs = _res_prev.get("_erros", {})
+            _avss = _res_prev.get("_avisos", {})
+            _feats_ok = {k: v for k, v in _res_prev.items() if not k.startswith("_")}
             for _u, _m in _errs.items():  st.warning(f"⚠️ {_u}: {_m}")
             for _u, _m in _avss.items():  st.info(f"ℹ️ {_u}: {_m}")
-            if _res:
-                st.success("✅ " + " · ".join(f"{u}={n} feat." for u, n in _res.items()))
-            st.rerun()
+            if _feats_ok:
+                st.success("✅ " + " · ".join(f"{u}={n} feat." for u, n in _feats_ok.items()))
 
     # Re-listar após possível download
     _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
