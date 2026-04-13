@@ -2644,9 +2644,24 @@ def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> di
 
     _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; dashboard-car/1.0)"}
     _PAGE  = 10_000
-    # Suprimir aviso de SSL desabilitado (servidor gov.br com cert desatualizado)
-    import urllib3 as _urllib3
-    _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
+
+    # Adaptador SSL legado para geoserver.car.gov.br (cipher suites antigas)
+    import ssl as _ssl
+    from requests.adapters import HTTPAdapter as _HTTPAdapter
+    from urllib3.util.ssl_ import create_urllib3_context as _mk_ctx
+
+    class _LegacySSL(_HTTPAdapter):
+        def init_poolmanager(self, *args, **kwargs):
+            ctx = _mk_ctx()
+            ctx.check_hostname = False
+            ctx.verify_mode = _ssl.CERT_NONE
+            ctx.set_ciphers("ALL:@SECLEVEL=0")
+            kwargs["ssl_context"] = ctx
+            return super().init_poolmanager(*args, **kwargs)
+
+    _session = _requests.Session()
+    _session.mount("https://", _LegacySSL())
+    _session.headers.update(_HEADERS)
     resultados = {}
     ufs = sorted(_cars_por_uf.keys())
 
@@ -2670,7 +2685,7 @@ def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> di
                     "&outputFormat=application%2Fjson"
                     f"&maxFeatures={_PAGE}&startIndex={_start}"
                 )
-                _r = _requests.get(_url, timeout=120, headers=_HEADERS, verify=False)
+                _r = _session.get(_url, timeout=120)
                 _r.raise_for_status()
                 _page_feats = _r.json().get("features", [])
                 _paginas += 1
