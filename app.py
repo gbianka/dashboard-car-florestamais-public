@@ -386,28 +386,16 @@ def render_estrategico(df_a, df_r, df_e, kpis):
               f"{fmt_int(kpis['total_distintos'])} CARs distintos")
     a2.metric("Municípios", fmt_int(kpis['municipios_analise']))
     a3.metric("UFs", fmt_int(kpis['ufs_eleg']))
-    a4.metric("Retificados apenas", fmt_int(kpis['cars_retif_retificados']))
 
     # ── Linha 2: Distintos por Escopo ──
     st.caption("CARs Distintos por Escopo")
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3 = st.columns(3)
     c1.metric("Análise", fmt_int(kpis['registros_analise']),
               f"{fmt_int(kpis['cars_analise'])} CARs distintos")
     c2.metric("Retificação", fmt_int(kpis['registros_retif']),
               f"{fmt_int(kpis['cars_retif'])} CARs distintos")
     c3.metric("Elegibilidade", fmt_int(kpis['registros_eleg']),
-              f"{fmt_int(kpis['cars_eleg'])} CARs no escopo")
-    c4.metric("Elegíveis PRA", fmt_pct(kpis['pct_elegivel']),
-              f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
-
-    # ── Linha 3: Indicadores ──
-    st.caption("Indicadores de Qualidade")
-    c5, c6, c7, c8 = st.columns(4)
-    c5.metric("CARs com Pendência", fmt_pct(kpis['pct_pendencia']),
-              delta=f"-{fmt_pct(kpis['pct_sem_pendencia'])} sem", delta_color="inverse")
-    c6.metric("Média de Ciclos", fmt_dec(kpis['media_ciclos'], 2))
-    c7.metric("1º Ciclo", fmt_pct(kpis['pct_1ciclo']))
-    c8.metric("Técnicos", fmt_int(kpis['tecnicos']))
+              f"{fmt_int(kpis['cars_eleg'])} CARs distintos")
 
     st.divider()
 
