@@ -625,7 +625,104 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 
     # ── Mapa territorial ──
     st.markdown("#### 🗺️ Distribuição Territorial")
-    tab_mapa1, tab_mapa2 = st.tabs(["📍 Análises por Município", "📍 Elegibilidade por UF"])
+    tab_visao, tab_mapa1, tab_mapa2 = st.tabs(["📋 Visão Geral", "📍 Análises por Município", "📍 Elegibilidade por UF"])
+
+    with tab_visao:
+        # ── Conjuntos de CARs por escopo ──
+        _ca = set(df_a["Nº DO CAR"].dropna().unique())       if "Nº DO CAR"     in df_a.columns else set()
+        _cr = set(df_r["Código do CAR"].dropna().unique())   if "Código do CAR" in df_r.columns else set()
+        _ce = set(df_e["Nº DO CAR"].dropna().unique())       if "Nº DO CAR"     in df_e.columns else set()
+
+        def _esc(car):
+            p = []
+            if car in _ca: p.append("Análise")
+            if car in _cr: p.append("Retificação")
+            if car in _ce: p.append("Elegibilidade")
+            return " + ".join(p) if p else "Sem escopo"
+
+        # ── Empilhar registros de todos os escopos com município ──
+        _partes = []
+        for _df, _col_car, _label in [
+            (df_a, "Nº DO CAR",     "Análise"),
+            (df_r, "Código do CAR", "Retificação"),
+            (df_e, "Nº DO CAR",     "Elegibilidade"),
+        ]:
+            if _col_car in _df.columns and "Município" in _df.columns:
+                _tmp = _df[[_col_car, "Município"]].copy()
+                _tmp.columns = ["CAR", "Município"]
+                _tmp = _tmp.dropna(subset=["CAR", "Município"])
+                _partes.append(_tmp)
+
+        if _partes:
+            _df_all = pd.concat(_partes, ignore_index=True)
+            _df_all["Escopo"] = _df_all["CAR"].apply(_esc)
+
+            # UF por município (preferência: df_e)
+            _uf_map = {}
+            if "UF" in df_e.columns and "Município" in df_e.columns:
+                _uf_map = df_e.dropna(subset=["Município", "UF"]) \
+                              .drop_duplicates("Município") \
+                              .set_index("Município")["UF"].to_dict()
+
+            # Agregar: registros totais + CARs únicos por Município × Escopo
+            _grp = (
+                _df_all
+                .groupby(["Município", "Escopo"], sort=False)["CAR"]
+                .agg(registros="count", cars_unicos="nunique")
+                .reset_index()
+            )
+            _grp["cell"] = _grp.apply(
+                lambda r: f"{fmt_int(r['registros'])} / {fmt_int(r['cars_unicos'])}", axis=1
+            )
+
+            # Pivot
+            _pivot = (
+                _grp
+                .pivot(index="Município", columns="Escopo", values="cell")
+                .reset_index()
+            )
+            _pivot.columns.name = None
+            _pivot["UF"] = _pivot["Município"].map(_uf_map).fillna("—")
+
+            # Ordem fixa das colunas de escopo
+            _ORDEM_ESC = [
+                "Análise", "Retificação", "Elegibilidade",
+                "Análise + Retificação", "Análise + Elegibilidade",
+                "Retificação + Elegibilidade",
+                "Análise + Retificação + Elegibilidade",
+            ]
+            _cols_esc = [c for c in _ORDEM_ESC if c in _pivot.columns]
+            _pivot = (
+                _pivot[["Município", "UF"] + _cols_esc]
+                .fillna("—")
+                .sort_values("Município")
+                .reset_index(drop=True)
+            )
+
+            st.caption(
+                f"**{fmt_int(len(_pivot))} municípios** abrangidos  ·  "
+                "células: _registros totais_ / _CARs únicos_"
+            )
+            st.dataframe(
+                _pivot,
+                use_container_width=True,
+                hide_index=True,
+                height=520,
+            )
+
+            # Download
+            _buf_t = io.BytesIO()
+            with pd.ExcelWriter(_buf_t, engine="xlsxwriter") as _wrt:
+                _pivot.to_excel(_wrt, sheet_name="Municípios por Escopo", index=False)
+            st.download_button(
+                "⬇️ Baixar tabela (.xlsx)",
+                data=_buf_t.getvalue(),
+                file_name=f"municipios_escopo_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.document",
+                key="dl_mun_escopo",
+            )
+        else:
+            st.info("Sem dados de município disponíveis nos escopos carregados.")
 
     with tab_mapa1:
         if "Município" in df_a.columns:
