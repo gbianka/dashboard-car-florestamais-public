@@ -63,6 +63,22 @@ html, body, .stApp {
 [data-testid="stMetricDelta"] svg {
     display: none;
 }
+/* Estilizar popover de ajuda como ícone nativo */
+[data-testid="stPopover"] > button {
+    background: none !important;
+    border: 1.5px solid #9E9E9E !important;
+    border-radius: 50% !important;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    padding: 0 !important;
+    font-size: 14px !important;
+    color: #9E9E9E !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-top: 8px !important;
+}
 [class*="material-symbols"],
 [class*="material-icons"],
 [class*="icon"] span,
@@ -378,7 +394,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     """Renderiza o painel estratégico (visão executiva)."""
 
     # ── Métricas de destaque ──
-    _t1, _t2 = st.columns([12, 1])
+    _t1, _t2 = st.columns([20, 1])
     _t1.markdown("### 📊 Indicadores-Chave do Projeto")
     with _t2.popover("❓"):
         st.markdown(
