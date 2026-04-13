@@ -283,6 +283,7 @@ def calcular_kpis(df_a, df_r, df_e):
     kpis["cars_analise"] = df_a["Nº DO CAR"].nunique() if "Nº DO CAR" in df_a.columns else len(df_a)
     kpis["registros_analise"] = len(df_a)
     kpis["cars_retif"] = df_r["Código do CAR"].nunique() if "Código do CAR" in df_r.columns else len(df_r)
+    kpis["cars_retif_retificados"] = df_r["Código do CAR"].nunique() if "Código do CAR" in df_r.columns else len(df_r) and df_r["Status de Retificação"] == "Retificado"
     kpis["registros_retif"] = len(df_r)
     kpis["cars_eleg"] = df_e["Nº DO CAR"].nunique() if "Nº DO CAR" in df_e.columns else len(df_e)
     kpis["registros_eleg"] = len(df_e)
@@ -397,7 +398,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
             st.markdown("#### Funil do Projeto")
             fig_funil = go.Figure(go.Funnel(
                 y=["Análise de CAR", "Retificação de CAR", "Elegibilidade PRA"],
-                x=[kpis["cars_analise"], kpis["cars_retif"], kpis["cars_eleg"]],
+                x=[kpis["cars_analise"], kpis["cars_retif_retificados"], kpis["cars_eleg"]],
                 textposition="inside", textinfo="value+percent initial",
                 marker=dict(color=[COR["azul"], COR["laranja"], COR["verde_claro"]]),
             ))
@@ -406,11 +407,11 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 
     with col_right:
         if _pode_ver(_E, "sankey"):
-            st.markdown("#### Fluxo entre Escopos (Sankey)")
+            st.markdown("#### Fluxo entre Escopos")
             node_labels = ["Análise", "Só Análise", "Retificação", "Elegibilidade",
                            "Análise+Retif", "Análise+Eleg", "Todos 3"]
             node_values = [
-                kpis["cars_analise"], kpis["so_analise"], kpis["cars_retif"],
+                kpis["cars_analise"], kpis["so_analise"], kpis["cars_retif_retificados"],
                 kpis["cars_eleg"], kpis["a_r"], kpis["a_e"], kpis["todos_3"],
             ]
             node_labels_fmt = [f"{l} ({fmt_int(v)})" for l, v in zip(node_labels, node_values)]
@@ -439,7 +440,6 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     col_a, col_b = st.columns([1, 1])
 
     with col_a:
-        st.markdown("#### Condição Final do Cadastro")
         _visao_cond = st.radio(
             "Visão:", ["Normalizada", "Original"], horizontal=True,
             key="cond_estrategico", label_visibility="collapsed",
@@ -447,6 +447,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
         _col_cond = "Condição_norm" if _visao_cond == "Normalizada" else "Condição final do cadastro"
         if _col_cond in df_a.columns:
             cond = df_a[_col_cond].value_counts()
+            _titulo_grafico("Condição Final do Cadastro", int(cond.sum()), len(df_a), "####")
             cores_cond = {
                 "Com pendências": COR["vermelho"], "Em conformidade": COR["verde_claro"],
                 "Aguard. regularização": COR["amarelo"], "Conformidade (CRA)": COR["verde_escuro"],
@@ -463,9 +464,9 @@ def render_estrategico(df_a, df_r, df_e, kpis):
             st.plotly_chart(fig_cond, width="stretch")
 
     with col_b:
-        st.markdown("#### Elegibilidade para PRA")
         if "Elegibilidade" in df_e.columns:
             eleg = df_e["Elegibilidade"].value_counts()
+            _titulo_grafico("Elegibilidade para PRA", int(eleg.sum()), len(df_e), "####")
             cores_eleg = {"Inelegível": COR["vermelho"], "Fase 1": COR["verde_claro"], "Fase 2": COR["verde_escuro"]}
             fig_eleg = px.pie(
                 values=eleg.values, names=eleg.index, hole=0.45,
@@ -494,6 +495,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
                         break
             if mun_geo:
                 df_geo = pd.DataFrame(mun_geo)
+                _titulo_grafico("Municípios mapeados", int(df_geo["Quantidade"].sum()), len(df_a), "#####")
                 fig_map = px.scatter_mapbox(
                     df_geo, lat="lat", lon="lon", size="Quantidade",
                     color="Quantidade", color_continuous_scale="YlGn",
@@ -534,7 +536,6 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     st.divider()
 
     # ── Evolução temporal ──
-    st.markdown("#### 📈 Evolução Temporal")
 
     def _agrupar_mensal(df, col_data, col_car):
         tmp = df.dropna(subset=[col_data]).copy()
@@ -551,12 +552,15 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     fig_tempo = go.Figure()
     _tem_dados = False
     _fontes = []
+    _total_com_data = 0
+    _total_registros = len(df_a) + len(df_r) + len(df_e)
 
     # Análise — coluna fixa: "Data fim"
     if "Data fim" in df_a.columns:
         m_a = _agrupar_mensal(df_a, "Data fim", "Nº DO CAR")
         if m_a is not None and not m_a.empty:
             _tem_dados = True
+            _total_com_data += int(m_a["total"].sum())
             _fontes.append("Análise: Data fim")
             fig_tempo.add_trace(go.Scatter(
                 x=m_a["Mês"], y=m_a["total"], mode="lines+markers",
@@ -581,6 +585,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
         m_r = _agrupar_mensal(df_r, _COL_DATA_RETIF, _COL_CAR_RETIF)
         if m_r is not None and not m_r.empty:
             _tem_dados = True
+            _total_com_data += int(m_r["total"].sum())
             _fontes.append(f"Retificação: {_COL_DATA_RETIF}")
             fig_tempo.add_trace(go.Scatter(
                 x=m_r["Mês"], y=m_r["total"], mode="lines+markers",
@@ -590,6 +595,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     # Elegibilidade — sem coluna de data disponível na planilha
 
     if _tem_dados:
+        _titulo_grafico("📈 Evolução Temporal", _total_com_data, _total_registros, "####")
         fig_tempo.update_layout(
             height=400, xaxis_tickangle=-45,
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
@@ -606,18 +612,18 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 # §7  MODO TÁTICO
 # ════════════════════════════════════════════════════════════════
 
-def _titulo_grafico(titulo, total_grafico, total_df):
+def _titulo_grafico(titulo, total_grafico, total_df, nivel="#####"):
     """Exibe título do gráfico com ícone de alerta inline se houver divergência."""
     diff = total_df - total_grafico
     if diff != 0:
         tooltip = (f"{fmt_int(total_grafico)} de {fmt_int(total_df)} registros "
                    f"({fmt_int(diff)} sem dados nesta coluna)")
         st.markdown(
-            f'##### {titulo} <span title="{tooltip}" style="cursor:help; font-size:0.85em;">⚠️</span>',
+            f'{nivel} {titulo} <span title="{tooltip}" style="cursor:help; font-size:0.85em;">⚠️</span>',
             unsafe_allow_html=True,
         )
     else:
-        st.markdown(f"##### {titulo}")
+        st.markdown(f"{nivel} {titulo}")
 
 
 def render_tatico(df_a, df_r, df_e, kpis):
