@@ -426,36 +426,17 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     with col_left:
         if _pode_ver(_E, "funil"):
             st.markdown("#### Distribuição por Escopo")
-            _tree_labels = []
-            _tree_parents = []
-            _tree_values = []
-            _tree_colors = []
-            # Dados do treemap
-            _tree_data = [
-                ("Apenas Análise",       kpis["so_analise"],  COR["verde_escuro"]),
-                ("Análise + Retif.",     kpis["a_r"],         "#00897B"),
-                ("Análise + Eleg.",      kpis["a_e"],         COR["roxo"]),
-                ("Todos os 3",           kpis["todos_3"],     "#37474F"),
-                ("Apenas Retificação",   kpis["so_retif"],    COR["azul"]),
-                ("Apenas Elegibilidade", kpis["so_eleg"],     COR["laranja"]),
-            ]
-            for label, val, cor in _tree_data:
-                if val > 0:
-                    _tree_labels.append(label)
-                    _tree_parents.append("Projeto")
-                    _tree_values.append(val)
-                    _tree_colors.append(cor)
-
-            fig_tree = go.Figure(go.Treemap(
-                labels=["Projeto"] + _tree_labels,
-                parents=[""] + _tree_parents,
-                values=[0] + _tree_values,
-                marker=dict(colors=["#FAFAFA"] + _tree_colors),
-                textinfo="label+value+percent root",
-                textfont=dict(size=13),
-                branchvalues="total",
-            ))
-            fig_tree.update_layout(height=380, margin=dict(l=5, r=5, t=5, b=5))
+            _tree_df = pd.DataFrame({
+                "Escopo": ["Análise", "Retificação", "Elegibilidade"],
+                "CARs": [kpis["cars_analise"], kpis["cars_retif"], kpis["cars_eleg"]],
+            })
+            fig_tree = px.treemap(
+                _tree_df, path=["Escopo"], values="CARs",
+                color="Escopo",
+                color_discrete_map={"Análise": COR["verde_escuro"], "Retificação": COR["azul"], "Elegibilidade": COR["laranja"]},
+            )
+            fig_tree.update_traces(textinfo="label+value+percent root", textfont=dict(size=15))
+            fig_tree.update_layout(height=380, margin=dict(l=5, r=5, t=5, b=5), showlegend=False)
             st.plotly_chart(fig_tree, use_container_width=True)
 
     with col_right:
