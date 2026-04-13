@@ -2690,7 +2690,9 @@ def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> di
                 _start += _PAGE
 
             except Exception as _exc:
-                resultados.setdefault("_erros", {})[_uf] = str(_exc)
+                # Preservar mensagem real do erro — não sobrescrever
+                _msg_exc = f"Erro após {_paginas} pág: {type(_exc).__name__}: {_exc}"
+                resultados.setdefault("_erros", {})[_uf] = _msg_exc
                 break
 
         # Só salva se encontrou algo
@@ -2706,11 +2708,12 @@ def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> di
             _faltando = len(_alvo) - len(_achou)
             if _faltando:
                 resultados.setdefault("_avisos", {})[_uf] = (
-                    f"{_faltando} CARs não encontrados no SICAR após {_paginas} pág."
+                    f"{_faltando} CARs não encontrados após {_paginas} pág."
                 )
-        else:
+        elif _uf not in resultados.get("_erros", {}):
+            # Só adiciona mensagem genérica se não houve erro real
             resultados.setdefault("_erros", {})[_uf] = (
-                f"0 features encontradas em {_paginas} página(s) — arquivo local preservado"
+                f"0 CARs encontrados em {_paginas} página(s) — arquivo local preservado"
             )
 
         if progress_cb:
