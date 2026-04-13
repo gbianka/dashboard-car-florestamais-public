@@ -1181,7 +1181,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
 
         e1, e2, e3, e4 = st.columns(4)
         e1.metric("Total de Elegibilidades", fmt_int(kpis['registros_eleg']))
-        e2.metric("CARs Únicos", fmt_int(kpis['cars_eleg']))
+        e2.metric("Municípios", fmt_int(kpis['municipios_eleg']))
         e3.metric("UFs", fmt_int(kpis['ufs_eleg']))
         e4.metric("Elegibilidade PSA", fmt_pct(kpis['pct_elegivel']),
                   f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
