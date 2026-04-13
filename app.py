@@ -2511,7 +2511,228 @@ _CREDENCIAIS_PADRAO = {
 }
 
 
-TODOS_OS_MENUS = ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"]
+# ════════════════════════════════════════════════════════════════
+# §P  PREPARAR DADOS — ENRIQUECIMENTO DE RETIFICAÇÃO
+# ════════════════════════════════════════════════════════════════
+
+
+def _carregar_retificacao_adicional(file_bytes: bytes) -> pd.DataFrame:
+    """Lê a aba AT_CONSOLIDADA da planilha adicional de retificação."""
+    df = pd.read_excel(
+        io.BytesIO(file_bytes),
+        sheet_name="AT_CONSOLIDADA",
+        dtype=str,          # tudo como string para evitar coerções
+    )
+    # Normalizar nomes: strip + colapsar espaços / quebras de linha
+    df.columns = [
+        str(c).strip().replace("\n", " ").replace("  ", " ")
+        for c in df.columns
+    ]
+    # Normalizar células de texto
+    for col in df.columns:
+        df[col] = df[col].map(
+            lambda x: x.strip() if isinstance(x, str) else x
+        )
+    # Substituir strings vazias por NaN para facilitar detecção de vazios
+    df.replace("", np.nan, inplace=True)
+    return df
+
+
+def _calcular_preview_retificacao(df_r: pd.DataFrame, df_add: pd.DataFrame) -> dict:
+    """
+    Calcula o que seria preenchido em df_r com dados de df_add.
+    Retorna dict: {col -> {n_preencher, pct, exemplos_df}}
+    """
+    col_key = "Código do CAR"
+    if col_key not in df_r.columns or col_key not in df_add.columns:
+        return {}
+
+    # Normalizar df_r para string/NaN também
+    df_r_str = df_r.copy()
+    for c in df_r_str.columns:
+        df_r_str[c] = df_r_str[c].astype(str).replace("nan", np.nan)
+
+    # Colunas em comum (exceto chave)
+    cols_comuns = [
+        c for c in df_r.columns
+        if c in df_add.columns and c != col_key
+    ]
+
+    resultado = {}
+    df_add_idx = df_add.set_index(col_key)
+
+    for col in cols_comuns:
+        df_tmp = df_r_str[[col_key, col]].copy()
+        df_tmp["_add"] = df_tmp[col_key].map(df_add_idx[col])
+
+        # Células vazias em df_r com valor disponível no adicional
+        mask = (
+            (df_tmp[col].isna() | (df_tmp[col].astype(str).str.strip() == ""))
+            & df_tmp["_add"].notna()
+            & (df_tmp["_add"].astype(str).str.strip() != "")
+        )
+        n = int(mask.sum())
+        if n == 0:
+            continue
+
+        exemplos = (
+            df_tmp[mask][[col_key, col, "_add"]]
+            .head(3)
+            .rename(columns={col: "Atual (vazio)", "_add": "Seria preenchido com"})
+        )
+        resultado[col] = {
+            "n_preencher": n,
+            "pct": n / max(len(df_r), 1) * 100,
+            "exemplos": exemplos,
+        }
+    return resultado
+
+
+def _aplicar_enriquecimento_retificacao(
+    df_r: pd.DataFrame, df_add: pd.DataFrame, cols_sel: list
+) -> pd.DataFrame:
+    """Preenche apenas as células vazias de df_r com valores de df_add."""
+    col_key = "Código do CAR"
+    df_out = df_r.copy()
+    df_add_idx = df_add.set_index(col_key)
+
+    for col in cols_sel:
+        if col not in df_add_idx.columns or col not in df_out.columns:
+            continue
+        mapa = df_add_idx[col]
+        novos_vals = df_out[col_key].map(mapa)
+
+        # Só preenche onde df_r está vazio
+        mask_vazio = df_out[col].isna() | (
+            df_out[col].astype(str).str.strip().isin(["", "nan", "None"])
+        )
+        df_out.loc[mask_vazio, col] = novos_vals[mask_vazio]
+
+    return df_out
+
+
+def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
+    """Página de preparação e enriquecimento dos dados antes da análise."""
+    st.markdown("### ⚙️ Preparar Dados")
+
+    # ── Status do arquivo carregado ──
+    st.markdown("#### 1. 📂 Arquivo principal")
+    col_s1, col_s2, col_s3 = st.columns(3)
+    col_s1.metric("Análise CAR", fmt_int(len(df_a_raw)), f"{fmt_int(df_a_raw['Nº DO CAR'].nunique() if 'Nº DO CAR' in df_a_raw.columns else 0)} CARs")
+    col_s2.metric("Retificação", fmt_int(len(df_r_raw)), f"{fmt_int(df_r_raw['Código do CAR'].nunique() if 'Código do CAR' in df_r_raw.columns else 0)} CARs")
+    col_s3.metric("Elegibilidade", fmt_int(len(df_e_raw)), f"{fmt_int(df_e_raw['Nº DO CAR'].nunique() if 'Nº DO CAR' in df_e_raw.columns else 0)} CARs")
+
+    st.divider()
+
+    # ── Enriquecimento de Retificação ──
+    st.markdown("#### 2. 📋 Enriquecer dados de Retificação")
+    st.caption(
+        "Importe a planilha adicional de retificações (aba **AT_CONSOLIDADA**). "
+        "Apenas campos **vazios** em df\_r serão preenchidos com os valores do arquivo adicional."
+    )
+
+    _KEY_RET_ADD  = "df_add_retif_bytes"
+    _KEY_RET_ENR  = "df_r_enriquecido"
+    _KEY_RET_PREV = "retif_preview"
+
+    arq_add = st.file_uploader(
+        "Planilha adicional (.xlsx)",
+        type=["xlsx", "xls"],
+        key="upload_retif_adicional",
+        help="Deve conter a aba AT_CONSOLIDADA com a coluna \"Código do CAR\"",
+    )
+
+    if arq_add:
+        _bytes_add = arq_add.read()
+        st.session_state[_KEY_RET_ADD] = _bytes_add
+
+        with st.spinner("Lendo AT_CONSOLIDADA..."):
+            df_add = _carregar_retificacao_adicional(_bytes_add)
+
+        # Status rápido
+        col_a1, col_a2 = st.columns(2)
+        col_a1.metric("Registros no adicional", fmt_int(len(df_add)))
+        col_a2.metric(
+            "CARs no adicional",
+            fmt_int(df_add["Código do CAR"].nunique() if "Código do CAR" in df_add.columns else 0),
+        )
+
+        # Usar df_r enriquecido se já existir, senão o raw
+        df_r_base = st.session_state.get(_KEY_RET_ENR, df_r_raw)
+
+        with st.spinner("Calculando preview..."):
+            preview = _calcular_preview_retificacao(df_r_base, df_add)
+        st.session_state[_KEY_RET_PREV] = (preview, df_add)
+
+        if not preview:
+            st.success("✅ Nenhuma célula nova para preencher — df\_r já está completo para as colunas em comum.")
+        else:
+            # ── PREVIEW ──
+            st.markdown("##### 🔍 Preview do que seria preenchido")
+
+            # Resumo por coluna
+            resumo_rows = [
+                {"Coluna": col, "Registros a preencher": info["n_preencher"],
+                 "% do df_r": fmt_pct(info["pct"])}
+                for col, info in preview.items()
+            ]
+            df_resumo = pd.DataFrame(resumo_rows).sort_values("Registros a preencher", ascending=False)
+            st.dataframe(df_resumo, use_container_width=True, hide_index=True, height=min(400, 38 * len(df_resumo) + 40))
+
+            # Detalhe expandido por coluna
+            with st.expander("📊 Ver exemplos por coluna", expanded=False):
+                for col, info in preview.items():
+                    st.markdown(f"**{col}** — {fmt_int(info['n_preencher'])} registros")
+                    st.dataframe(info["exemplos"], use_container_width=True, hide_index=True)
+                    st.markdown("---")
+
+            # ── SELEÇÃO E APLICAÇÃO ──
+            st.markdown("##### ✅ Selecione as colunas a aplicar")
+            cols_disponiveis = list(preview.keys())
+            cols_sel = st.multiselect(
+                "Colunas:",
+                cols_disponiveis,
+                default=cols_disponiveis,
+                key="retif_cols_sel",
+            )
+
+            _já_aplicado = _KEY_RET_ENR in st.session_state
+            _label_btn = "✅ Reaplicar enriquecimento" if _já_aplicado else "✅ Aplicar enriquecimento"
+
+            if st.button(_label_btn, key="btn_aplicar_retif", type="primary"):
+                if cols_sel:
+                    with st.spinner("Aplicando..."):
+                        df_r_novo = _aplicar_enriquecimento_retificacao(df_r_base, df_add, cols_sel)
+                    st.session_state[_KEY_RET_ENR] = df_r_novo
+                    n_total = sum(v["n_preencher"] for k, v in preview.items() if k in cols_sel)
+                    st.success(f"✅ {fmt_int(n_total)} campos preenchidos em {fmt_int(len(cols_sel))} colunas. df\_r atualizado para toda a sessão.")
+                    st.rerun()
+                else:
+                    st.warning("Selecione ao menos uma coluna.")
+
+    # Mostrar status do enriquecimento aplicado
+    if _KEY_RET_ENR in st.session_state:
+        df_r_enr = st.session_state[_KEY_RET_ENR]
+        st.info(
+            f"ℹ️ df\_r enriquecido ativo: **{fmt_int(len(df_r_enr))} registros**, "
+            f"**{fmt_int(len(df_r_enr.columns))} colunas**. "
+            "Todas as páginas usarão esta versão."
+        )
+        if st.button("🗑️ Remover enriquecimento (voltar ao original)", key="btn_remover_retif"):
+            del st.session_state[_KEY_RET_ENR]
+            st.rerun()
+
+    st.divider()
+
+    # ── SICAR Local ──
+    st.markdown("#### 3. 🗂️ Enriquecimento SICAR (local)")
+    _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
+    if _arqs:
+        st.caption(f"📁 {len(_arqs)} arquivo(s) disponíveis: " + ", ".join(a.stem for a in _arqs))
+    st.info("👉 O enriquecimento SICAR com geometrias está disponível na página **CARs**, seção Enriquecimento.")
+
+
+TODOS_OS_MENUS = ["Preparar Dados", "Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"]
 
 TODAS_AS_SECOES = {
     "Painel Estratégico": ["kpis", "funil", "sankey", "condicao", "elegibilidade", "mapa_territorial", "evolucao_temporal"],
@@ -2524,9 +2745,9 @@ TODAS_AS_SECOES = {
 
 # Menus acessíveis por perfil
 _MENUS_POR_PERFIL = {
-    "Admin":    ["Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"],
-    "Gestor":   ["Painel Estratégico", "Painel Tático", "CARs", "Mapa"],
-    "Analista": ["Painel Estratégico", "Painel Tático", "CARs", "Mapa"],
+    "Admin":    ["Preparar Dados", "Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"],
+    "Gestor":   ["Preparar Dados", "Painel Estratégico", "Painel Tático", "CARs", "Mapa"],
+    "Analista": ["Preparar Dados", "Painel Estratégico", "Painel Tático", "CARs", "Mapa"],
     "IPAAM":    ["Painel Estratégico", "Painel Tático", "CARs", "Mapa"],
     "GIZ":      ["Painel Estratégico", "CARs", "Mapa"],
 }
@@ -2580,6 +2801,7 @@ def _pode_ver(pagina, secao):
 
 # Ícones dos menus
 _ICONES_MENU = {
+    "Preparar Dados": "⚙️",
     "Painel Estratégico": "📊",
     "Painel Tático": "🔧",
     "CARs": "🏷️",
@@ -2794,7 +3016,9 @@ def main():
         st.divider()
 
     # ── Aplicar filtros ──
-    df_a, df_r, df_e = aplicar_filtros(df_a_raw, df_r_raw, df_e_raw, filtros)
+    # Usar df_r enriquecido se disponível na sessão
+    df_r_raw_ef = st.session_state.get("df_r_enriquecido", df_r_raw)
+    df_a, df_r, df_e = aplicar_filtros(df_a_raw, df_r_raw_ef, df_e_raw, filtros)
 
     # ── Indicador de filtros ativos ──
     filtros_ativos = {k: v for k, v in filtros.items() if v and v != []}
@@ -2807,7 +3031,9 @@ def main():
     kpis = calcular_kpis(df_a, df_r, df_e)
 
     # ── Renderização ──
-    if "Painel Estratégico" in modo:
+    if "Preparar Dados" in modo:
+        render_preparar_dados(df_a_raw, df_r_raw, df_e_raw)
+    elif "Painel Estratégico" in modo:
         render_estrategico(df_a, df_r, df_e, kpis)
     elif "Painel Tático" in modo:
         render_tatico(df_a, df_r, df_e, kpis)
