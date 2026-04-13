@@ -382,21 +382,21 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     # ── Linha 1: Visão Geral ──
     st.caption("Visão Geral")
     a1, a2, a3, a4 = st.columns(4)
-    a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise'] + kpis['registros_retif'] + kpis['registros_eleg']))
-    a2.metric("CARs Distintos", fmt_int(kpis['total_distintos']))
-    a3.metric("Municípios", fmt_int(kpis['municipios_analise']))
-    a4.metric("UFs", fmt_int(kpis['ufs_eleg']))
+    a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise'] + kpis['registros_retif'] + kpis['registros_eleg']),
+              f"{fmt_int(kpis['total_distintos'])} CARs distintos")
+    a2.metric("Municípios", fmt_int(kpis['municipios_analise']))
+    a3.metric("UFs", fmt_int(kpis['ufs_eleg']))
     a4.metric("Retificados apenas", fmt_int(kpis['cars_retif_retificados']))
 
     # ── Linha 2: Distintos por Escopo ──
     st.caption("CARs Distintos por Escopo")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Análise", fmt_int(kpis['cars_analise']),
-              f"{fmt_int(kpis['registros_analise'])} registros")
-    c2.metric("Retificação", fmt_int(kpis['cars_retif_todos']),
-              f"{fmt_int(kpis['cars_retif'])} CARs no escopo")
-    c3.metric("Elegibilidade", fmt_int(kpis['cars_eleg']),
-              f"{fmt_int(kpis['registros_eleg'])} registros")
+    c1.metric("Análise", fmt_int(kpis['registros_analise']),
+              f"{fmt_int(kpis['cars_analise'])} CARs distintos")
+    c2.metric("Retificação", fmt_int(kpis['registros_retif']),
+              f"{fmt_int(kpis['cars_retif'])} CARs distintos")
+    c3.metric("Elegibilidade", fmt_int(kpis['registros_eleg']),
+              f"{fmt_int(kpis['cars_eleg'])} CARs no escopo")
     c4.metric("Elegíveis PRA", fmt_pct(kpis['pct_elegivel']),
               f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
 
