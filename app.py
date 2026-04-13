@@ -2326,6 +2326,8 @@ def render_cars(df_a, df_r, df_e):
             )
 
         if _btn_sicar:
+            # Invalidar cache antes de enriquecer
+            _carregar_sicar_local.clear()
             with st.spinner("Lendo arquivos SICAR e fazendo merge..."):
                 _df_enr_l, _nf_l, _nfeat_l, _nm_l = enriquecer_sicar_local(df_consol)
             st.session_state[_sicar_key] = _df_enr_l
@@ -2615,11 +2617,12 @@ def _aplicar_enriquecimento_retificacao(
 
 def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> dict:
     """
-    Busca no WFS SICAR apenas os CARs do projeto (CQL_FILTER por UF).
-    Salva cada UF em data/public/cars_wfs/sicar_imoveis_{uf}.json.
-    Retorna dict: {uf: n_features} e invalida cache do loader.
+    Baixa dados SICAR por UF com paginação, filtrando localmente pelos CARs do projeto.
+    Para cada UF, pagina o WFS (10k/página) até encontrar todos os CARs do projeto
+    ou esgotar o dataset. Não depende de CQL_FILTER (mais compatível).
+    Só sobrescreve arquivo local se retornar ao menos 1 feature.
     """
-    # Coletar todos os CARs únicos do projeto
+    # Coletar CARs do projeto por UF
     _todos_cars = set()
     for _df, _col in [
         (df_a_raw, "Nº DO CAR"),
@@ -2627,65 +2630,88 @@ def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> di
         (df_e_raw, "Nº DO CAR"),
     ]:
         if _df is not None and _col in _df.columns:
-            _todos_cars |= set(_df[_col].dropna().astype(str).str.strip().unique())
+            _todos_cars |= set(_df[_col].dropna().astype(str).str.strip())
 
-    # Agrupar por UF (prefixo antes do primeiro "-")
     _cars_por_uf = {}
     for _car in _todos_cars:
-        _parts = _car.split("-")
-        if len(_parts) >= 2 and _parts[0].strip():
-            _uf = _parts[0].strip().upper()
-            _cars_por_uf.setdefault(_uf, []).append(_car)
+        _p = _car.split("-")
+        if len(_p) >= 2 and _p[0].strip():
+            _cars_por_uf.setdefault(_p[0].strip().upper(), set()).add(_car)
 
+    _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; dashboard-car/1.0)"}
+    _PAGE  = 10_000
     resultados = {}
-    ufs = list(_cars_por_uf.keys())
+    ufs = sorted(_cars_por_uf.keys())
 
     for _i, _uf in enumerate(ufs):
-        _cars = _cars_por_uf[_uf]
-        _uf_lower = _uf.lower()
-        if progress_cb:
-            progress_cb(_i / len(ufs), f"{_uf}: buscando {len(_cars)} CARs...")
+        _alvo    = _cars_por_uf[_uf]          # CARs do projeto nesta UF
+        _lower   = _uf.lower()
+        _feats   = []                          # features filtradas
+        _achou   = set()                       # CARs já encontrados
+        _start   = 0
+        _paginas = 0
 
-        # Buscar em chunks de 100 CARs (evita URL muito longa)
-        _features_uf = []
-        _chunks = [_cars[j:j + 100] for j in range(0, len(_cars), 100)]
-        for _chunk in _chunks:
+        if progress_cb:
+            progress_cb(_i / len(ufs), f"{_uf}: {len(_alvo)} CARs — iniciando...")
+
+        while len(_achou) < len(_alvo):
             try:
-                _cql = "cod_imovel IN ('" + "','".join(_chunk) + "')"
                 _url = (
                     "https://geoserver.car.gov.br/geoserver/sicar/ows"
                     "?service=WFS&version=1.0.0&request=GetFeature"
-                    f"&typeName=sicar:sicar_imoveis_{_uf_lower}"
+                    f"&typeName=sicar:sicar_imoveis_{_lower}"
                     "&outputFormat=application%2Fjson"
-                    f"&CQL_FILTER={_url_quote(_cql)}"
+                    f"&maxFeatures={_PAGE}&startIndex={_start}"
                 )
-                _resp = _requests.get(
-                    _url,
-                    timeout=90,
-                    headers={"User-Agent": "Mozilla/5.0 (compatible; dashboard-car/1.0)"},
-                )
-                _resp.raise_for_status()
-                _features_uf.extend(_resp.json().get("features", []))
+                _r = _requests.get(_url, timeout=120, headers=_HEADERS)
+                _r.raise_for_status()
+                _page_feats = _r.json().get("features", [])
+                _paginas += 1
+
+                for _f in _page_feats:
+                    _cod = str((_f.get("properties") or {}).get("cod_imovel", "")).strip()
+                    if _cod in _alvo:
+                        _feats.append(_f)
+                        _achou.add(_cod)
+
+                if progress_cb:
+                    progress_cb(
+                        (_i + len(_achou) / max(len(_alvo), 1)) / len(ufs),
+                        f"{_uf}: pág {_paginas} — {len(_achou)}/{len(_alvo)} encontrados",
+                    )
+
+                # Última página: servidor retornou menos que o máximo
+                if len(_page_feats) < _PAGE:
+                    break
+                _start += _PAGE
+
             except Exception as _exc:
                 resultados.setdefault("_erros", {})[_uf] = str(_exc)
+                break
 
-        # Só salva se retornou features — nunca sobrescreve com arquivo vazio
-        if _features_uf:
-            _out = _SICAR_DIR / f"sicar_imoveis_{_uf_lower}.json"
+        # Só salva se encontrou algo
+        if _feats:
+            _out = _SICAR_DIR / f"sicar_imoveis_{_lower}.json"
             _SICAR_DIR.mkdir(parents=True, exist_ok=True)
             with open(_out, "w", encoding="utf-8") as _fout:
                 _json.dump(
-                    {"type": "FeatureCollection", "features": _features_uf},
+                    {"type": "FeatureCollection", "features": _feats},
                     _fout, ensure_ascii=False,
                 )
-            resultados[_uf] = len(_features_uf)
+            resultados[_uf] = len(_feats)
+            _faltando = len(_alvo) - len(_achou)
+            if _faltando:
+                resultados.setdefault("_avisos", {})[_uf] = (
+                    f"{_faltando} CARs não encontrados no SICAR após {_paginas} pág."
+                )
         else:
-            resultados.setdefault("_erros", {})[_uf] = "WFS retornou 0 features — arquivo local preservado"
+            resultados.setdefault("_erros", {})[_uf] = (
+                f"0 features encontradas em {_paginas} página(s) — arquivo local preservado"
+            )
 
         if progress_cb:
-            progress_cb((_i + 1) / len(ufs), f"{_uf}: {len(_features_uf)} features salvas")
+            progress_cb((_i + 1) / len(ufs), f"{_uf}: {len(_feats)} features salvas")
 
-    # Invalidar cache para que próxima leitura pegue os novos arquivos
     _carregar_sicar_local.clear()
     return resultados
 
@@ -2830,6 +2856,43 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
 
     # Re-listar arquivos
     _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
+
+    with st.expander("🔄 Atualizar arquivos SICAR com os CARs do projeto", expanded=not bool(_arqs)):
+        st.caption(
+            "Pagina o WFS do SICAR por UF e filtra **localmente** apenas os CARs do projeto. "
+            "Não depende de CQL_FILTER. Arquivos locais só são sobrescritos se retornar dados."
+        )
+        # Preview CARs por UF
+        _prev = {}
+        for _dfp, _cp in [(df_a_raw, "Nº DO CAR"), (df_r_raw, "Código do CAR"), (df_e_raw, "Nº DO CAR")]:
+            if _dfp is not None and _cp in _dfp.columns:
+                for _c in _dfp[_cp].dropna().astype(str):
+                    _u = _c.split("-")[0].strip().upper() if "-" in _c else ""
+                    if _u: _prev[_u] = _prev.get(_u, 0) + 1
+        if _prev:
+            _tot = len(set(
+                c for _dfp, _cp in [(df_a_raw, "Nº DO CAR"), (df_r_raw, "Código do CAR"), (df_e_raw, "Nº DO CAR")]
+                if _dfp is not None and _cp in _dfp.columns
+                for c in _dfp[_cp].dropna().astype(str)
+            ))
+            st.caption(f"📌 {_tot} CARs únicos · " + " · ".join(f"{u}={n}" for u, n in sorted(_prev.items())))
+
+        if st.button("⬇️ Baixar/atualizar SICAR (paginação)", key="btn_baixar_sicar",
+                     type="primary", use_container_width=True):
+            _pg = st.progress(0.0, text="Iniciando...")
+            _res = _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw,
+                                          progress_cb=lambda p, m: _pg.progress(float(p), text=m))
+            _pg.empty()
+            _errs = _res.pop("_erros", {})
+            _avss = _res.pop("_avisos", {})
+            for _u, _m in _errs.items():  st.warning(f"⚠️ {_u}: {_m}")
+            for _u, _m in _avss.items():  st.info(f"ℹ️ {_u}: {_m}")
+            if _res:
+                st.success("✅ " + " · ".join(f"{u}={n} feat." for u, n in _res.items()))
+            st.rerun()
+
+    # Re-listar após possível download
+    _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
     if not _arqs:
         st.warning(
             "Nenhum arquivo encontrado em `data/public/cars_wfs/`. "
@@ -2863,7 +2926,9 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
 
         # Para o enriquecimento precisamos do consolidado — construído a partir dos raw
         if _btn_sicar_p:
-            with st.spinner("Construindo consolidado e fazendo merge SICAR..."):
+            # Invalidar cache para garantir leitura dos arquivos atuais
+            _carregar_sicar_local.clear()
+            with st.spinner("Lendo arquivos SICAR e fazendo merge..."):
                 _df_r_ef = st.session_state.get("df_r_enriquecido", df_r_raw)
                 _consol_tmp = construir_df_consolidado(df_a_raw, _df_r_ef, df_e_raw)
                 _df_enr_p, _nf_p, _nfeat_p, _nm_p = enriquecer_sicar_local(_consol_tmp)
