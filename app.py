@@ -2835,6 +2835,134 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
                         key="dl_sicar_prep_geojson",
                     )
 
+    # ── 5. Resultado Final ──
+    st.divider()
+    st.markdown("#### 5. 📦 Resultado Final")
+    st.caption(
+        "Gera os arquivos finais já considerando todos os enriquecimentos aplicados acima. "
+        "Use o df\_r enriquecido (se aplicado) e os dados SICAR (se carregados)."
+    )
+
+    # Usar df_r enriquecido se disponível
+    _df_r_final = st.session_state.get("df_r_enriquecido", df_r_raw)
+
+    # Status dos enriquecimentos ativos
+    _status_enr = []
+    if "df_r_enriquecido" in st.session_state:
+        _status_enr.append("✅ Retificação enriquecida")
+    if "df_consol_sicar_local" in st.session_state:
+        _nm_sicar = st.session_state["df_consol_sicar_local"]["geometry_wfs"].notna().sum() \
+            if "geometry_wfs" in st.session_state["df_consol_sicar_local"].columns else 0
+        _status_enr.append(f"✅ SICAR carregado ({fmt_int(_nm_sicar)} com geometria)")
+    if not _status_enr:
+        st.info("ℹ️ Nenhum enriquecimento aplicado ainda. Os downloads abaixo usarão os dados brutos.")
+    else:
+        for s in _status_enr:
+            st.markdown(s)
+
+    st.markdown("")
+
+    # Construir consolidado final
+    with st.spinner("Preparando dados..."):
+        _df_consol_final = construir_df_consolidado(df_a_raw, _df_r_final, df_e_raw)
+        _df_cars_final   = construir_df_cars_unicos(_df_consol_final)
+
+    # Se SICAR carregado, mesclar geometria no consolidado final
+    _df_sicar_enr = st.session_state.get("df_consol_sicar_local")
+    if _df_sicar_enr is not None:
+        _cols_wfs = [c for c in _df_sicar_enr.columns if c.endswith("_wfs")]
+        _cols_join = ["Nº DO CAR"] + _cols_wfs
+        _sicar_chave = _df_sicar_enr[["Nº DO CAR"] + _cols_wfs].drop_duplicates(subset=["Nº DO CAR"], keep="first") \
+            if "Nº DO CAR" in _df_sicar_enr.columns else None
+        if _sicar_chave is not None:
+            _df_consol_final = _df_consol_final.merge(_sicar_chave, on="Nº DO CAR", how="left")
+            _df_cars_final   = _df_cars_final.merge(_sicar_chave, on="Nº DO CAR", how="left")
+
+    # Resumo
+    _rc1, _rc2 = st.columns(2)
+    _rc1.metric("Registros no Consolidado", fmt_int(len(_df_consol_final)),
+                f"{fmt_int(len(_df_consol_final.columns))} colunas")
+    _rc2.metric("CARs Únicos", fmt_int(len(_df_cars_final)),
+                f"{fmt_int(len(_df_cars_final.columns))} colunas")
+
+    st.markdown("")
+
+    # Downloads: Consolidado
+    st.markdown("**Consolidado** — todos os registros de todos os escopos")
+    _dl1, _dl2 = st.columns(2)
+    with _dl1:
+        _buf_cf = io.BytesIO()
+        _cols_cf = [c for c in _df_consol_final.columns if c != "geometry_wfs"]
+        with pd.ExcelWriter(_buf_cf, engine="xlsxwriter") as _w:
+            _df_consol_final[_cols_cf].to_excel(_w, sheet_name="Consolidado", index=False)
+        st.download_button(
+            "⬇️ Consolidado (.xlsx)",
+            data=_buf_cf.getvalue(),
+            file_name=f"consolidado_final_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.document",
+            key="dl_resultado_consol_xlsx",
+        )
+    with _dl2:
+        if "geometry_wfs" in _df_consol_final.columns:
+            _feats_cf = []
+            _base_cf = [c for c in ["Nº DO CAR", "Origem", "Escopo", "Município"] if c in _df_consol_final.columns]
+            for _, row in _df_consol_final.dropna(subset=["geometry_wfs"]).iterrows():
+                try:
+                    geom = _json.loads(row["geometry_wfs"])
+                except Exception:
+                    continue
+                props = {c: (None if pd.isna(row[c]) else str(row[c])) for c in _base_cf if c in row}
+                _feats_cf.append({"type": "Feature", "geometry": geom, "properties": props})
+            _geo_cf = _json.dumps({"type": "FeatureCollection", "features": _feats_cf}, ensure_ascii=False)
+            st.download_button(
+                "⬇️ Consolidado (.geojson)",
+                data=_geo_cf.encode("utf-8"),
+                file_name=f"consolidado_final_{datetime.now().strftime('%Y%m%d_%H%M')}.geojson",
+                mime="application/geo+json",
+                key="dl_resultado_consol_geojson",
+            )
+        else:
+            st.caption("💡 Faça o enriquecimento SICAR (seção 4) para habilitar o download GeoJSON.")
+
+    st.markdown("")
+
+    # Downloads: CARs Únicos
+    st.markdown("**CARs Únicos** — um registro por CAR (maior ciclo de análise)")
+    _dl3, _dl4 = st.columns(2)
+    with _dl3:
+        _buf_cu = io.BytesIO()
+        _cols_cu = [c for c in _df_cars_final.columns if c != "geometry_wfs"]
+        with pd.ExcelWriter(_buf_cu, engine="xlsxwriter") as _w:
+            _df_cars_final[_cols_cu].to_excel(_w, sheet_name="CARs Únicos", index=False)
+        st.download_button(
+            "⬇️ CARs Únicos (.xlsx)",
+            data=_buf_cu.getvalue(),
+            file_name=f"cars_unicos_final_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.document",
+            key="dl_resultado_cars_xlsx",
+        )
+    with _dl4:
+        if "geometry_wfs" in _df_cars_final.columns:
+            _feats_cu = []
+            _base_cu = [c for c in ["Nº DO CAR", "Escopo", "Município"] if c in _df_cars_final.columns]
+            for _, row in _df_cars_final.dropna(subset=["geometry_wfs"]).iterrows():
+                try:
+                    geom = _json.loads(row["geometry_wfs"])
+                except Exception:
+                    continue
+                props = {c: (None if pd.isna(row[c]) else str(row[c])) for c in _base_cu if c in row}
+                _feats_cu.append({"type": "Feature", "geometry": geom, "properties": props})
+            _geo_cu = _json.dumps({"type": "FeatureCollection", "features": _feats_cu}, ensure_ascii=False)
+            st.download_button(
+                "⬇️ CARs Únicos (.geojson)",
+                data=_geo_cu.encode("utf-8"),
+                file_name=f"cars_unicos_final_{datetime.now().strftime('%Y%m%d_%H%M')}.geojson",
+                mime="application/geo+json",
+                key="dl_resultado_cars_geojson",
+            )
+        else:
+            st.caption("💡 Faça o enriquecimento SICAR (seção 4) para habilitar o download GeoJSON.")
+
 
 TODOS_OS_MENUS = ["Preparar Dados", "Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"]
 
