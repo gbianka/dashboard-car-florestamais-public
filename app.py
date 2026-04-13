@@ -383,11 +383,16 @@ def calcular_kpis(df_a, df_r, df_e):
         kpis["media_ciclos"] = 0
         kpis["pct_1ciclo"] = 0
 
-    # Pendências
-    if "Situação da Análise Externa" in df_a.columns:
-        sit = df_a["Situação da Análise Externa"].value_counts()
+    # Pendências — apenas último ciclo por CAR
+    if "Situação da Análise Externa" in df_a.columns and "Nº DO CAR" in df_a.columns:
+        if "Ciclo de análise" in df_a.columns:
+            _ult = (df_a.sort_values(["Nº DO CAR", "Ciclo de análise"])
+                       .drop_duplicates(subset="Nº DO CAR", keep="last"))
+        else:
+            _ult = df_a.drop_duplicates(subset="Nº DO CAR", keep="last")
+        sit = _ult["Situação da Análise Externa"].value_counts()
         total_sit = sit.sum()
-        kpis["pct_pendencia"] = sit.get("CAR com pendência(s)", 0) / max(total_sit, 1) * 100
+        kpis["pct_pendencia"]     = sit.get("CAR com pendência(s)", 0) / max(total_sit, 1) * 100
         kpis["pct_sem_pendencia"] = sit.get("CAR sem pendência(s)", 0) / max(total_sit, 1) * 100
     else:
         kpis["pct_pendencia"] = 0
