@@ -150,6 +150,34 @@ def fmt_pct(v, casas=1):
     return f"{fmt_dec(v, casas)}%"
 
 
+_ORDEM_GRUPO_MF = ["0 a 1 MF", "1 a 2 MF", "2 a 3 MF", "3 MF ou mais", "Não informado"]
+_CORES_GRUPO_MF = {
+    "0 a 1 MF":    "#1B5E20",  # verde escuro
+    "1 a 2 MF":    "#66BB6A",  # verde claro
+    "2 a 3 MF":    "#FFC107",  # amarelo
+    "3 MF ou mais": "#FF9800", # laranja
+    "Não informado": "#9E9E9E", # cinza
+}
+
+
+def classificar_grupo_mf(valor):
+    """Classifica valor numérico de módulo fiscal em grupo para o sumário executivo."""
+    if pd.isna(valor):
+        return "Não informado"
+    try:
+        v = float(valor)
+    except (ValueError, TypeError):
+        return "Não informado"
+    if v <= 1:
+        return "0 a 1 MF"
+    elif v <= 2:
+        return "1 a 2 MF"
+    elif v <= 3:
+        return "2 a 3 MF"
+    else:
+        return "3 MF ou mais"
+
+
 # ════════════════════════════════════════════════════════════════
 # §3  CARREGAMENTO E LIMPEZA DE DADOS
 # ════════════════════════════════════════════════════════════════
@@ -529,6 +557,72 @@ def render_estrategico(df_a, df_r, df_e, kpis):
 
     st.divider()
 
+    # ── Grupo de Módulo Fiscal ──
+    st.markdown("#### 🏡 Grupo de Módulo Fiscal")
+
+    _MF_FONTES = [
+        ("Análise",      df_a, "MF"),
+        ("Retificação",  df_r, "Módulos Fiscais"),
+        ("Elegibilidade", df_e, "MF imóvel"),
+    ]
+    _CORES_ESCOPO_MF = {
+        "Análise":       COR["verde_escuro"],
+        "Retificação":   COR["azul"],
+        "Elegibilidade": COR["laranja"],
+    }
+
+    _mf_series = {}
+    for _esc, _df_src, _col_mf in _MF_FONTES:
+        if _col_mf in _df_src.columns:
+            _s = pd.to_numeric(_df_src[_col_mf], errors="coerce").apply(classificar_grupo_mf)
+            _mf_series[_esc] = (_s, _col_mf, len(_df_src))
+
+    if _mf_series:
+        _grupos_validos = [g for g in _ORDEM_GRUPO_MF
+                           if any(g in sd[0].values for sd in _mf_series.values())]
+        _col_mf1, _col_mf2 = st.columns([3, 2])
+
+        with _col_mf1:
+            st.markdown("##### Imóveis por Grupo de MF — por Escopo")
+            fig_mf_grp = go.Figure()
+            for _esc, (_s, _col_usada, _total) in _mf_series.items():
+                _ct = _s.value_counts().reindex(_grupos_validos, fill_value=0)
+                fig_mf_grp.add_trace(go.Bar(
+                    name=f"{_esc} ('{_col_usada}')",
+                    x=_ct.index, y=_ct.values,
+                    marker_color=_CORES_ESCOPO_MF[_esc],
+                    text=[fmt_int(v) if v else "" for v in _ct.values],
+                    textposition="auto",
+                ))
+            fig_mf_grp.update_layout(
+                barmode="group", height=400,
+                margin=dict(l=20, r=10, t=10, b=60),
+                yaxis_title="Imóveis", xaxis_title="Grupo de Módulo Fiscal",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10)),
+            )
+            st.plotly_chart(fig_mf_grp, width="stretch")
+
+        with _col_mf2:
+            _esc_pie = "Análise" if "Análise" in _mf_series else list(_mf_series.keys())[0]
+            _s_pie, _col_pie, _tot_pie = _mf_series[_esc_pie]
+            _ct_pie = _s_pie.value_counts().reindex(
+                [g for g in _grupos_validos if g in _s_pie.values], fill_value=0
+            )
+            _titulo_grafico(f"Distribuição (%) — {_esc_pie}", int(_ct_pie.sum()), _tot_pie, "#####")
+            fig_mf_pie = px.pie(
+                values=_ct_pie.values, names=_ct_pie.index, hole=0.45,
+                color=_ct_pie.index, color_discrete_map=_CORES_GRUPO_MF,
+            )
+            fig_mf_pie.update_traces(textinfo="percent+value", textposition="auto")
+            fig_mf_pie.update_layout(height=400, margin=dict(l=10, r=10, t=10, b=10),
+                                     legend=dict(font=dict(size=11)))
+            st.plotly_chart(fig_mf_pie, width="stretch")
+            st.caption(f"Fonte: coluna '{_col_pie}' da aba {_esc_pie}")
+    else:
+        st.info("Colunas de MF não encontradas. Esperadas: 'MF' (Análise), 'Módulos Fiscais' (Retificação), 'MF imóvel' (Elegibilidade).")
+
+    st.divider()
+
     # ── Mapa territorial ──
     st.markdown("#### 🗺️ Distribuição Territorial")
     tab_mapa1, tab_mapa2 = st.tabs(["📍 Análises por Município", "📍 Elegibilidade por UF"])
@@ -747,6 +841,55 @@ def render_tatico(df_a, df_r, df_e, kpis):
                 ))
                 fig_tipo.update_layout(height=300, margin=dict(l=20, r=10, t=10, b=30))
                 st.plotly_chart(fig_tipo, width="stretch")
+
+        # Grupo de Módulo Fiscal (Tático)
+        st.markdown("##### Grupo de Módulo Fiscal")
+        _MF_FONTES_T = [
+            ("Análise",       df_a, "MF"),
+            ("Retificação",   df_r, "Módulos Fiscais"),
+            ("Elegibilidade", df_e, "MF imóvel"),
+        ]
+        _mf_series_t = {}
+        for _esc_t, _df_t, _col_t in _MF_FONTES_T:
+            if _col_t in _df_t.columns:
+                _s_t = pd.to_numeric(_df_t[_col_t], errors="coerce").apply(classificar_grupo_mf)
+                _mf_series_t[_esc_t] = (_s_t, _col_t, len(_df_t))
+
+        if _mf_series_t:
+            _grupos_t = [g for g in _ORDEM_GRUPO_MF
+                         if any(g in sd[0].values for sd in _mf_series_t.values())]
+            _cores_esc_t = {"Análise": COR["verde_escuro"], "Retificação": COR["azul"], "Elegibilidade": COR["laranja"]}
+            _radio_esc = st.radio(
+                "Escopo:", list(_mf_series_t.keys()), horizontal=True, key="mf_tatico_escopo"
+            )
+            _s_sel, _col_sel, _tot_sel = _mf_series_t[_radio_esc]
+            _mf_ct = _s_sel.value_counts().reindex(
+                [g for g in _grupos_t if g in _s_sel.values], fill_value=0
+            )
+            _ct1, _ct2, _ct3 = st.columns([2, 1, 1])
+            with _ct1:
+                _titulo_grafico(f"Grupo de MF — {_radio_esc}", int(_mf_ct.sum()), _tot_sel)
+                fig_mf_t = go.Figure(go.Bar(
+                    x=_mf_ct.index, y=_mf_ct.values,
+                    marker_color=_cores_esc_t.get(_radio_esc, COR["cinza"]),
+                    text=[fmt_int(v) for v in _mf_ct.values], textposition="auto",
+                ))
+                fig_mf_t.update_layout(height=300, margin=dict(l=20, r=10, t=10, b=30),
+                                       yaxis_title="Imóveis")
+                st.plotly_chart(fig_mf_t, width="stretch")
+            with _ct2:
+                for _g in _mf_ct.index:
+                    _pct = _mf_ct[_g] / max(_mf_ct.sum(), 1) * 100
+                    st.metric(_g, fmt_int(_mf_ct[_g]), fmt_pct(_pct))
+            with _ct3:
+                _sem_info = int((_s_sel == "Não informado").sum())
+                st.metric(f"Total {_radio_esc}", fmt_int(_tot_sel))
+                st.metric("Sem MF informado", fmt_int(_sem_info))
+                if _sem_info:
+                    st.caption(f"{fmt_pct(_sem_info / max(_tot_sel, 1) * 100)} sem dado")
+            st.caption(f"📊 Coluna: '{_col_sel}' | Escopo: {_radio_esc}")
+        else:
+            st.info("ℹ️ Colunas de MF não encontradas nos escopos.")
 
         # Reserva Legal + Desmatamento
         col_rl, col_desm = st.columns(2)
