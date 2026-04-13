@@ -59,6 +59,10 @@ st.markdown("""
 html, body, .stApp {
     font-family: 'Manrope', sans-serif;
 }
+/* Esconder setinhas dos deltas nos st.metric */
+[data-testid="stMetricDelta"] svg {
+    display: none;
+}
 [class*="material-symbols"],
 [class*="material-icons"],
 [class*="icon"] span,
