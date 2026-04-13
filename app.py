@@ -283,7 +283,7 @@ def calcular_kpis(df_a, df_r, df_e):
     kpis["cars_analise"] = df_a["Nº DO CAR"].nunique() if "Nº DO CAR" in df_a.columns else len(df_a)
     kpis["registros_analise"] = len(df_a)
     kpis["cars_retif"] = df_r["Código do CAR"].nunique() if "Código do CAR" in df_r.columns else len(df_r)
-    kpis["cars_retif_retificados"] = df_r["Código do CAR"].nunique() if "Código do CAR" in df_r.columns else len(df_r) and df_r["Status de Retificação"] == "Retificado"
+    kpis["cars_retif_retificados"] = df_r["Código do CAR"].nunique() and df_r["Status de Retificação"] == "Retificado" if "Código do CAR" in df_r.columns else len(df_r)
     kpis["registros_retif"] = len(df_r)
     kpis["cars_eleg"] = df_e["Nº DO CAR"].nunique() if "Nº DO CAR" in df_e.columns else len(df_e)
     kpis["registros_eleg"] = len(df_e)
@@ -299,9 +299,17 @@ def calcular_kpis(df_a, df_r, df_e):
         kpis["retif_retificados"] = int(sr.get("Retificado", 0))
         kpis["retif_finalizados"] = int(sr.get("Finalizado", 0))
         kpis["pct_retificado"] = kpis["retif_retificados"] / max(len(df_r), 1) * 100
+        # CARs distintos efetivamente retificados
+        if "Código do CAR" in df_r.columns:
+            kpis["cars_retif_retificados"] = df_r[
+                df_r["Status de Retificação"] == "Retificado"
+            ]["Código do CAR"].nunique()
+        else:
+            kpis["cars_retif_retificados"] = kpis["retif_retificados"]
     else:
         kpis["retif_retificados"] = kpis["retif_finalizados"] = 0
         kpis["pct_retificado"] = 0
+        kpis["cars_retif_retificados"] = 0
 
     # Ciclos
     if "Ciclo de análise" in df_a.columns and "Nº DO CAR" in df_a.columns:
@@ -372,8 +380,8 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Análise", fmt_int(kpis['cars_analise']),
               f"{fmt_int(kpis['registros_analise'])} registros")
-    c2.metric("Retificação", fmt_int(kpis['cars_retif']),
-              f"{fmt_int(kpis['registros_retif'])} registros")
+    c2.metric("Retificação", fmt_int(kpis['cars_retif_retificados']),
+              f"{fmt_int(kpis['cars_retif'])} CARs no escopo")
     c3.metric("Elegibilidade", fmt_int(kpis['cars_eleg']),
               f"{fmt_int(kpis['registros_eleg'])} registros")
     c4.metric("Elegíveis PRA", fmt_pct(kpis['pct_elegivel']),
@@ -823,8 +831,8 @@ def render_tatico(df_a, df_r, df_e, kpis):
         r1.metric("Total de Retificações", fmt_int(kpis['registros_retif']))
         r2.metric("CARs Únicos", fmt_int(kpis['cars_retif']))
         r3.metric("Municípios", fmt_int(kpis['municipios_retif']))
-        r4.metric("Retificados", fmt_pct(kpis['pct_retificado']),
-                  f"{fmt_int(kpis['retif_retificados'])} CARs")
+        r4.metric("Retificados", fmt_int(kpis['cars_retif_retificados']),
+                  f"{fmt_pct(kpis['pct_retificado'])} do escopo")
 
         st.divider()
 
