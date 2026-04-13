@@ -1,5 +1,5 @@
 venv/
 .env
-data/
+data/private/
 __pycache__/
 *.pyc

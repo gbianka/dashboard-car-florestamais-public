@@ -1997,14 +1997,14 @@ def buscar_wfs_sicar(df_consol: pd.DataFrame, progress_cb=None) -> tuple:
 import json as _json
 import pathlib as _pathlib
 
-_SICAR_DIR = _pathlib.Path(__file__).parent / "data" / "cars_wfs"
+_SICAR_DIR = _pathlib.Path(__file__).parent / "data" / "public" / "cars_wfs"
 _SICAR_GLOB = "sicar_imoveis_*.json"
 
 
 @st.cache_data(show_spinner=False)
 def _carregar_sicar_local() -> pd.DataFrame:
     """
-    Lê todos os sicar_imoveis_[uf].json de data/cars_wfs/.
+    Lê todos os sicar_imoveis_[uf].json de data/public/cars_wfs/.
     Retorna DataFrame com cod_imovel_wfs + demais colunas_wfs + geometry_wfs.
     Resultado em cache — só relerá se o app reiniciar.
     """
@@ -2753,7 +2753,7 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
     _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
     if not _arqs:
         st.warning(
-            "Nenhum arquivo encontrado em `data/cars_wfs/`. "
+            "Nenhum arquivo encontrado em `data/public/cars_wfs/`. "
             "Coloque os arquivos `sicar_imoveis_[uf].json` nessa pasta."
         )
     else:
