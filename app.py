@@ -381,21 +381,17 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     st.markdown("### 📊 Indicadores-Chave do Projeto")
     # ── Linha 1: Visão Geral ──
     st.caption("Visão Geral")
-    a1, a2, a3, a4 = st.columns(4)
+    a1, a2, a3, a4, a5 = st.columns(5)
     a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise'] + kpis['registros_retif'] + kpis['registros_eleg']),
               f"{fmt_int(kpis['total_distintos'])} CARs distintos")
-    a2.metric("Municípios", fmt_int(kpis['municipios_analise']))
-    a3.metric("UFs", fmt_int(kpis['ufs_eleg']))
-
-    # ── Linha 2: Distintos por Escopo ──
-    st.caption("CARs Distintos por Escopo")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Análise", fmt_int(kpis['registros_analise']),
+    a2.metric("Análise", fmt_int(kpis['registros_analise']),
               f"{fmt_int(kpis['cars_analise'])} CARs distintos")
-    c2.metric("Retificação", fmt_int(kpis['registros_retif']),
+    a3.metric("Retificação", fmt_int(kpis['registros_retif']),
               f"{fmt_int(kpis['cars_retif'])} CARs distintos")
-    c3.metric("Elegibilidade", fmt_int(kpis['registros_eleg']),
+    a4.metric("Elegibilidade", fmt_int(kpis['registros_eleg']),
               f"{fmt_int(kpis['cars_eleg'])} CARs distintos")
+    a5.metric("Municípios", fmt_int(kpis['municipios_analise']), f"{fmt_int(kpis['ufs_eleg'])} UFs")
+
 
     st.divider()
 
