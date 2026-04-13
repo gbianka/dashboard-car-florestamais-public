@@ -2559,7 +2559,7 @@ def _calcular_preview_retificacao(df_r: pd.DataFrame, df_add: pd.DataFrame) -> d
     ]
 
     resultado = {}
-    df_add_idx = df_add.set_index(col_key)
+    df_add_idx = df_add.drop_duplicates(subset=[col_key], keep="last").set_index(col_key)
 
     for col in cols_comuns:
         df_tmp = df_r_str[[col_key, col]].copy()
@@ -2594,7 +2594,7 @@ def _aplicar_enriquecimento_retificacao(
     """Preenche apenas as células vazias de df_r com valores de df_add."""
     col_key = "Código do CAR"
     df_out = df_r.copy()
-    df_add_idx = df_add.set_index(col_key)
+    df_add_idx = df_add.drop_duplicates(subset=[col_key], keep="last").set_index(col_key)
 
     for col in cols_sel:
         if col not in df_add_idx.columns or col not in df_out.columns:
