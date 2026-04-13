@@ -2615,8 +2615,30 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
     """Página de preparação e enriquecimento dos dados antes da análise."""
     st.markdown("### ⚙️ Preparar Dados")
 
+    # ── 1. Upload da planilha principal ──
+    st.markdown("#### 1. 📂 Upload da planilha principal")
+
+    arq_principal = st.file_uploader(
+        "Arquivo .xlsx com as abas: Análises CAR, Retificação, Elegibilidade",
+        type=["xlsx", "xls"],
+        key="upload_principal",
+    )
+    if arq_principal:
+        with st.spinner("Carregando e normalizando dados..."):
+            _bytes = arq_principal.read()
+            _dfa, _dfr, _dfe = carregar_e_limpar(_bytes, arq_principal.name)
+        st.session_state["dados_principais"] = (_dfa, _dfr, _dfe)
+        st.session_state["arquivo_nome"] = arq_principal.name
+        # Atualizar referências locais para refletir upload imediato
+        df_a_raw, df_r_raw, df_e_raw = _dfa, _dfr, _dfe
+        st.success(f"✅ **{arq_principal.name}** carregado com sucesso!")
+
+    if df_a_raw is None:
+        st.info("☝️ Faça o upload da planilha para começar.")
+        return
+
     # ── Status do arquivo carregado ──
-    st.markdown("#### 1. 📂 Arquivo principal")
+    st.markdown("#### 2. 📊 Status dos dados carregados")
     col_s1, col_s2, col_s3 = st.columns(3)
     col_s1.metric("Análise CAR", fmt_int(len(df_a_raw)), f"{fmt_int(df_a_raw['Nº DO CAR'].nunique() if 'Nº DO CAR' in df_a_raw.columns else 0)} CARs")
     col_s2.metric("Retificação", fmt_int(len(df_r_raw)), f"{fmt_int(df_r_raw['Código do CAR'].nunique() if 'Código do CAR' in df_r_raw.columns else 0)} CARs")
@@ -2625,7 +2647,7 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
     st.divider()
 
     # ── Enriquecimento de Retificação ──
-    st.markdown("#### 2. 📋 Enriquecer dados de Retificação")
+    st.markdown("#### 3. 📋 Enriquecer dados de Retificação")
     st.caption(
         "Importe a planilha adicional de retificações (aba **AT_CONSOLIDADA**). "
         "Apenas campos **vazios** em df\_r serão preenchidos com os valores do arquivo adicional."
@@ -2725,7 +2747,7 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
     st.divider()
 
     # ── SICAR Local ──
-    st.markdown("#### 3. 🗂️ Enriquecimento SICAR (local)")
+    st.markdown("#### 4. 🗂️ Enriquecimento SICAR (local)")
     _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
     if _arqs:
         st.caption(f"📁 {len(_arqs)} arquivo(s) disponíveis: " + ", ".join(a.stem for a in _arqs))
@@ -2890,6 +2912,13 @@ def main():
 
     # ── Cabeçalho ──
     import base64, pathlib
+
+    # ── Carregar dados do session_state ──
+    _dados_key = "dados_principais"
+    if _dados_key in st.session_state:
+        df_a_raw, df_r_raw, df_e_raw = st.session_state[_dados_key]
+    else:
+        df_a_raw = df_r_raw = df_e_raw = None
     _logo_path = pathlib.Path(__file__).parent / "assets" / "img" / "LOGO_FLORESTAMAIS_TRANSPARENTE_V1.svg"
     if _logo_path.exists():
         _logo_b64 = base64.b64encode(_logo_path.read_bytes()).decode()
@@ -2932,90 +2961,90 @@ def main():
                         label_visibility="collapsed")
 
         st.divider()
-        
-        st.markdown("### 📂 Dados")
-        arquivo = st.file_uploader(
-            "Faça upload do arquivo .xlsx",
-            type=["xlsx", "xls"],
-            help="Planilha com abas: Cadastros CAR, Retificação CAR, Elegibilidade CAR",
-        )
 
-        if arquivo:
-            file_bytes = arquivo.read()
-            df_a_raw, df_r_raw, df_e_raw = carregar_e_limpar(file_bytes, arquivo.name)
-            st.success(f"Carregado: {arquivo.name}")
+        # ── Status dos dados ──
+        if "dados_principais" in st.session_state:
+            _nome = st.session_state.get("arquivo_nome", "arquivo.xlsx")
+            st.caption(f"📂 **{_nome}**")
         else:
-            st.warning("Faça upload do arquivo .xlsx para começar.")
-            st.stop()
+            st.warning("ℹ️ Sem dados. Use **⚙️ Preparar Dados**.")
 
         st.divider()
 
         # ── Filtros globais ──
-        st.markdown("### 🎯 Filtros")
-
         filtros = {}
+        if df_a_raw is not None:
+            st.markdown("### 🎯 Filtros")
 
-        # Código do CAR
-        filtros["car"] = st.text_input("Código do CAR",
-                                       placeholder="Ex: AM-1300060-...",
-                                       help="Filtre por código completo ou parcial do CAR")
+            # Código do CAR
+            filtros["car"] = st.text_input("Código do CAR",
+                                           placeholder="Ex: AM-1300060-...",
+                                           help="Filtre por código completo ou parcial do CAR")
 
-        # Município
-        if "Município" in df_a_raw.columns:
-            municipios_disp = sorted(df_a_raw["Município"].dropna().unique())
-            filtros["municipios"] = st.multiselect("Município", municipios_disp,
-                                                    placeholder="Selecione...",
-                                                    help="Filtre por um ou mais municípios")
+            # Município
+            if "Município" in df_a_raw.columns:
+                municipios_disp = sorted(df_a_raw["Município"].dropna().unique())
+                filtros["municipios"] = st.multiselect("Município", municipios_disp,
+                                                        placeholder="Selecione...",
+                                                        help="Filtre por um ou mais municípios")
 
-        # Lote
-        if "LOTE" in df_a_raw.columns:
-            lotes_disp = sorted(df_a_raw["LOTE"].dropna().unique())
-            filtros["lotes"] = st.multiselect("Lote", lotes_disp,
-                                               placeholder="Selecione...",
-                                               help="Filtre por um ou mais lotes")
+            # Lote
+            if "LOTE" in df_a_raw.columns:
+                lotes_disp = sorted(df_a_raw["LOTE"].dropna().unique())
+                filtros["lotes"] = st.multiselect("Lote", lotes_disp,
+                                                   placeholder="Selecione...",
+                                                   help="Filtre por um ou mais lotes")
 
-        # Status
-        if "Condição_norm" in df_a_raw.columns:
-            status_disp = sorted(df_a_raw["Condição_norm"].dropna().unique())
-            filtros["status"] = st.multiselect("Status de Análise", status_disp, placeholder="Selecione...")
+            # Status
+            if "Condição_norm" in df_a_raw.columns:
+                status_disp = sorted(df_a_raw["Condição_norm"].dropna().unique())
+                filtros["status"] = st.multiselect("Status de Análise", status_disp, placeholder="Selecione...")
 
-        # Ciclos
-        if "Ciclo de análise" in df_a_raw.columns:
-            ciclos_disp = sorted(df_a_raw["Ciclo de análise"].dropna().unique())
-            ciclos_disp = [int(c) for c in ciclos_disp if c in [1, 2, 3, 4]]
-            filtros["ciclos"] = st.multiselect("Ciclo de Análise", ciclos_disp, placeholder="Selecione...")
+            # Ciclos
+            if "Ciclo de análise" in df_a_raw.columns:
+                ciclos_disp = sorted(df_a_raw["Ciclo de análise"].dropna().unique())
+                ciclos_disp = [int(c) for c in ciclos_disp if c in [1, 2, 3, 4]]
+                filtros["ciclos"] = st.multiselect("Ciclo de Análise", ciclos_disp, placeholder="Selecione...")
 
-        # Elegibilidade
-        if "Elegibilidade" in df_e_raw.columns:
-            eleg_disp = sorted(df_e_raw["Elegibilidade"].dropna().unique())
-            filtros["elegibilidade"] = st.multiselect("Elegibilidade PSA", eleg_disp, placeholder="Selecione...")
+            # Elegibilidade
+            if "Elegibilidade" in df_e_raw.columns:
+                eleg_disp = sorted(df_e_raw["Elegibilidade"].dropna().unique())
+                filtros["elegibilidade"] = st.multiselect("Elegibilidade PSA", eleg_disp, placeholder="Selecione...")
 
-        # UF
-        if "UF" in df_e_raw.columns:
-            uf_disp = sorted(df_e_raw["UF"].dropna().unique())
-            filtros["ufs"] = st.multiselect("UF (Elegibilidade)", uf_disp, placeholder="Selecione...")
+            # UF
+            if "UF" in df_e_raw.columns:
+                uf_disp = sorted(df_e_raw["UF"].dropna().unique())
+                filtros["ufs"] = st.multiselect("UF (Elegibilidade)", uf_disp, placeholder="Selecione...")
 
-        # Período
-        if "Data fim" in df_a_raw.columns:
-            datas_validas = df_a_raw["Data fim"].dropna()
-            if not datas_validas.empty:
-                st.markdown("**Período (Data fim)**")
-                d_min = datas_validas.min().date()
-                d_max = datas_validas.max().date()
-                datas_sel = st.date_input(
-                    "Intervalo", value=(d_min, d_max), min_value=d_min, max_value=d_max,
-                    label_visibility="collapsed",
-                )
-                # Só marca como filtro ativo se o usuário alterou o intervalo
-                if isinstance(datas_sel, tuple) and len(datas_sel) == 2:
-                    sel_ini, sel_fim = datas_sel
-                    if sel_ini != d_min or sel_fim != d_max:
-                        filtros["data_inicio"] = sel_ini
-                        filtros["data_fim"] = sel_fim
+            # Período
+            if "Data fim" in df_a_raw.columns:
+                datas_validas = df_a_raw["Data fim"].dropna()
+                if not datas_validas.empty:
+                    st.markdown("**Período (Data fim)**")
+                    d_min = datas_validas.min().date()
+                    d_max = datas_validas.max().date()
+                    datas_sel = st.date_input(
+                        "Intervalo", value=(d_min, d_max), min_value=d_min, max_value=d_max,
+                        label_visibility="collapsed",
+                    )
+                    if isinstance(datas_sel, tuple) and len(datas_sel) == 2:
+                        sel_ini, sel_fim = datas_sel
+                        if sel_ini != d_min or sel_fim != d_max:
+                            filtros["data_inicio"] = sel_ini
+                            filtros["data_fim"] = sel_fim
 
-        st.divider()
+            st.divider()
 
     # ── Aplicar filtros ──
+    # Guard: se não há dados e não está em Preparar Dados, bloquear
+    if df_a_raw is None:
+        if "Preparar Dados" not in modo:
+            st.info("👉 Acesse **⚙️ Preparar Dados** para fazer o upload da planilha.")
+            st.stop()
+        else:
+            render_preparar_dados(None, None, None)
+            return
+
     # Usar df_r enriquecido se disponível na sessão
     df_r_raw_ef = st.session_state.get("df_r_enriquecido", df_r_raw)
     df_a, df_r, df_e = aplicar_filtros(df_a_raw, df_r_raw_ef, df_e_raw, filtros)
