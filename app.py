@@ -2644,6 +2644,9 @@ def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> di
 
     _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; dashboard-car/1.0)"}
     _PAGE  = 10_000
+    # Suprimir aviso de SSL desabilitado (servidor gov.br com cert desatualizado)
+    import urllib3 as _urllib3
+    _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
     resultados = {}
     ufs = sorted(_cars_por_uf.keys())
 
@@ -2667,7 +2670,7 @@ def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> di
                     "&outputFormat=application%2Fjson"
                     f"&maxFeatures={_PAGE}&startIndex={_start}"
                 )
-                _r = _requests.get(_url, timeout=120, headers=_HEADERS)
+                _r = _requests.get(_url, timeout=120, headers=_HEADERS, verify=False)
                 _r.raise_for_status()
                 _page_feats = _r.json().get("features", [])
                 _paginas += 1
