@@ -570,7 +570,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     _MF_FONTES = [
         ("Análise",      df_a, "MF"),
         ("Retificação",  df_r, "Módulos Fiscais"),
-        ("Elegibilidade", df_e, "MF imóvel"),
+        ("Elegibilidade", df_e, "MF"),
     ]
     _CORES_ESCOPO_MF = {
         "Análise":       COR["verde_escuro"],
