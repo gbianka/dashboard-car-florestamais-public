@@ -364,7 +364,8 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise'] + kpis['registros_retif'] + kpis['registros_eleg']))
     a2.metric("CARs Distintos", fmt_int(kpis['total_distintos']))
     a3.metric("Municípios", fmt_int(kpis['municipios_analise']))
-    a4.metric("UFs Elegibilidade", fmt_int(kpis['ufs_eleg']))
+    a4.metric("UFs", fmt_int(kpis['ufs_eleg']))
+    a4.metric("Rtificação xxxxx", fmt_int(kpis['cars_retif_retificados']))
 
     # ── Linha 2: Distintos por Escopo ──
     st.caption("CARs Distintos por Escopo")
