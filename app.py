@@ -2749,9 +2749,89 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
     # ── SICAR Local ──
     st.markdown("#### 4. 🗂️ Enriquecimento SICAR (local)")
     _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
-    if _arqs:
-        st.caption(f"📁 {len(_arqs)} arquivo(s) disponíveis: " + ", ".join(a.stem for a in _arqs))
-    st.info("👉 O enriquecimento SICAR com geometrias está disponível na página **CARs**, seção Enriquecimento.")
+    if not _arqs:
+        st.warning(
+            "Nenhum arquivo encontrado em `data/cars_wfs/`. "
+            "Coloque os arquivos `sicar_imoveis_[uf].json` nessa pasta."
+        )
+    else:
+        st.caption(
+            f"📁 {len(_arqs)} arquivo(s): "
+            + ", ".join(a.stem for a in _arqs)
+        )
+
+        _sicar_key = "df_consol_sicar_local"
+        _col_sbtn, _col_sinfo = st.columns([1, 2])
+
+        with _col_sinfo:
+            if _sicar_key in st.session_state:
+                _df_s = st.session_state[_sicar_key]
+                _n_s = len([c for c in _df_s.columns if c.endswith("_wfs") and c != "geometry_wfs"])
+                _nm_s = _df_s["geometry_wfs"].notna().sum() if "geometry_wfs" in _df_s.columns else 0
+                st.success(
+                    f"✅ {fmt_int(_n_s)} colunas SICAR · "
+                    f"{fmt_int(_nm_s)} registros com geometria"
+                )
+            else:
+                st.info("Leia os JSONs locais e faça merge com o consolidado.")
+
+        with _col_sbtn:
+            _btn_sicar_p = st.button(
+                "🔗 Enriquecer (local)", key="btn_sicar_prep", use_container_width=True
+            )
+
+        # Para o enriquecimento precisamos do consolidado — construído a partir dos raw
+        if _btn_sicar_p:
+            with st.spinner("Construindo consolidado e fazendo merge SICAR..."):
+                _df_r_ef = st.session_state.get("df_r_enriquecido", df_r_raw)
+                _consol_tmp = construir_df_consolidado(df_a_raw, _df_r_ef, df_e_raw)
+                _df_enr_p, _nf_p, _nfeat_p, _nm_p = enriquecer_sicar_local(_consol_tmp)
+            st.session_state[_sicar_key] = _df_enr_p
+            st.rerun()
+
+        if _sicar_key in st.session_state:
+            _df_enr_p = st.session_state[_sicar_key]
+            _cols_sp = [c for c in _df_enr_p.columns if c.endswith("_wfs") and c != "geometry_wfs"]
+            _tem_geom_p = "geometry_wfs" in _df_enr_p.columns
+
+            with st.expander(f"📋 Colunas SICAR ({len(_cols_sp)})", expanded=False):
+                st.write(_cols_sp)
+
+            _dl_p1, _dl_p2 = st.columns(2)
+            with _dl_p1:
+                _buf_sp = io.BytesIO()
+                _cols_sp_xlsx = [c for c in _df_enr_p.columns if c != "geometry_wfs"]
+                with pd.ExcelWriter(_buf_sp, engine="xlsxwriter") as _wrt_sp:
+                    _df_enr_p[_cols_sp_xlsx].to_excel(_wrt_sp, sheet_name="Consolidado+SICAR", index=False)
+                st.download_button(
+                    "⬇️ Consolidado + SICAR (.xlsx)",
+                    data=_buf_sp.getvalue(),
+                    file_name=f"consolidado_sicar_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.document",
+                    key="dl_sicar_prep_xlsx",
+                )
+            with _dl_p2:
+                if _tem_geom_p:
+                    _base_p = [c for c in ["Nº DO CAR", "Origem", "Escopo", "Município"] if c in _df_enr_p.columns]
+                    _feats_p = []
+                    for _, row in _df_enr_p.dropna(subset=["geometry_wfs"]).iterrows():
+                        try:
+                            geom = _json.loads(row["geometry_wfs"])
+                        except Exception:
+                            continue
+                        props = {c: (None if pd.isna(row[c]) else str(row[c])) for c in _base_p if c in row}
+                        _feats_p.append({"type": "Feature", "geometry": geom, "properties": props})
+                    _geo_p = _json.dumps(
+                        {"type": "FeatureCollection", "features": _feats_p},
+                        ensure_ascii=False,
+                    )
+                    st.download_button(
+                        "⬇️ Geometrias do projeto (.geojson)",
+                        data=_geo_p.encode("utf-8"),
+                        file_name=f"geometrias_projeto_{datetime.now().strftime('%Y%m%d_%H%M')}.geojson",
+                        mime="application/geo+json",
+                        key="dl_sicar_prep_geojson",
+                    )
 
 
 TODOS_OS_MENUS = ["Preparar Dados", "Painel Estratégico", "Painel Tático", "CARs", "Detalhe CAR", "Mapa", "Dados / Tabelas"]
