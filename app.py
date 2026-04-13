@@ -2602,11 +2602,13 @@ def _aplicar_enriquecimento_retificacao(
         mapa = df_add_idx[col]
         novos_vals = df_out[col_key].map(mapa)
 
-        # Só preenche onde df_r está vazio
         mask_vazio = df_out[col].isna() | (
             df_out[col].astype(str).str.strip().isin(["", "nan", "None"])
         )
-        df_out.loc[mask_vazio, col] = novos_vals[mask_vazio]
+        if mask_vazio.any():
+            # Converter para object evita conflito de dtype (df_add é todo str)
+            df_out[col] = df_out[col].astype(object)
+            df_out.loc[mask_vazio, col] = novos_vals[mask_vazio]
 
     return df_out
 
