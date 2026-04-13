@@ -2613,6 +2613,76 @@ def _aplicar_enriquecimento_retificacao(
     return df_out
 
 
+def _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=None) -> dict:
+    """
+    Busca no WFS SICAR apenas os CARs do projeto (CQL_FILTER por UF).
+    Salva cada UF em data/public/cars_wfs/sicar_imoveis_{uf}.json.
+    Retorna dict: {uf: n_features} e invalida cache do loader.
+    """
+    # Coletar todos os CARs únicos do projeto
+    _todos_cars = set()
+    for _df, _col in [
+        (df_a_raw, "Nº DO CAR"),
+        (df_r_raw, "Código do CAR"),
+        (df_e_raw, "Nº DO CAR"),
+    ]:
+        if _df is not None and _col in _df.columns:
+            _todos_cars |= set(_df[_col].dropna().astype(str).str.strip().unique())
+
+    # Agrupar por UF (prefixo antes do primeiro "-")
+    _cars_por_uf = {}
+    for _car in _todos_cars:
+        _parts = _car.split("-")
+        if len(_parts) >= 2 and _parts[0].strip():
+            _uf = _parts[0].strip().upper()
+            _cars_por_uf.setdefault(_uf, []).append(_car)
+
+    resultados = {}
+    ufs = list(_cars_por_uf.keys())
+
+    for _i, _uf in enumerate(ufs):
+        _cars = _cars_por_uf[_uf]
+        _uf_lower = _uf.lower()
+        if progress_cb:
+            progress_cb(_i / len(ufs), f"{_uf}: buscando {len(_cars)} CARs...")
+
+        # Buscar em chunks de 100 CARs (evita URL muito longa)
+        _features_uf = []
+        _chunks = [_cars[j:j + 100] for j in range(0, len(_cars), 100)]
+        for _chunk in _chunks:
+            try:
+                _cql = "cod_imovel IN ('" + "','".join(_chunk) + "')"
+                _url = (
+                    "https://geoserver.car.gov.br/geoserver/sicar/ows"
+                    "?service=WFS&version=1.0.0&request=GetFeature"
+                    f"&typeName=sicar:sicar_imoveis_{_uf_lower}"
+                    "&outputFormat=application%2Fjson"
+                    f"&CQL_FILTER={_url_quote(_cql)}"
+                )
+                _resp = _requests.get(_url, timeout=90)
+                _resp.raise_for_status()
+                _features_uf.extend(_resp.json().get("features", []))
+            except Exception as _exc:
+                resultados.setdefault("_erros", {})[_uf] = str(_exc)
+
+        # Salvar GeoJSON filtrado
+        _out = _SICAR_DIR / f"sicar_imoveis_{_uf_lower}.json"
+        _SICAR_DIR.mkdir(parents=True, exist_ok=True)
+        with open(_out, "w", encoding="utf-8") as _fout:
+            _json.dump(
+                {"type": "FeatureCollection", "features": _features_uf},
+                _fout, ensure_ascii=False,
+            )
+        resultados[_uf] = len(_features_uf)
+
+        if progress_cb:
+            progress_cb((_i + 1) / len(ufs), f"{_uf}: {len(_features_uf)} features salvas")
+
+    # Invalidar cache para que próxima leitura pegue os novos arquivos
+    _carregar_sicar_local.clear()
+    return resultados
+
+
 def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
     """Página de preparação e enriquecimento dos dados antes da análise."""
     st.markdown("### ⚙️ Preparar Dados")
@@ -2750,6 +2820,57 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
 
     # ── SICAR Local ──
     st.markdown("#### 4. 🗂️ Enriquecimento SICAR (local)")
+    _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
+
+    # ── Download filtrado ──
+    with st.expander("🔄 Atualizar arquivos SICAR com os CARs do projeto", expanded=not bool(_arqs)):
+        st.caption(
+            "Busca no WFS SICAR **apenas os CARs do projeto** (por UF), "
+            "substituindo os arquivos locais com dados filtrados. "
+            f"Projeto tem **{sum(len(_cars_por_uf_tmp) for _cars_por_uf_tmp in [{}].values()) if False else '?'}** CARs únicos."
+        )
+        # Contar CARs do projeto por UF para mostrar no preview
+        _preview_ufs = {}
+        for _df_p, _col_p in [(df_a_raw, "Nº DO CAR"), (df_r_raw, "Código do CAR"), (df_e_raw, "Nº DO CAR")]:
+            if _df_p is not None and _col_p in _df_p.columns:
+                for _c in _df_p[_col_p].dropna().astype(str):
+                    _uf_p = _c.split("-")[0].strip().upper() if "-" in _c else ""
+                    if _uf_p:
+                        _preview_ufs[_uf_p] = _preview_ufs.get(_uf_p, 0) + 1
+
+        if _preview_ufs:
+            _total_cars_proj = len(set(
+                c for _df_p, _col_p in [(df_a_raw, "Nº DO CAR"), (df_r_raw, "Código do CAR"), (df_e_raw, "Nº DO CAR")]
+                if _df_p is not None and _col_p in _df_p.columns
+                for c in _df_p[_col_p].dropna().astype(str)
+            ))
+            st.caption(f"📌 {_total_cars_proj} CARs únicos · {len(_preview_ufs)} UF(s): " +
+                       " · ".join(f"{u} ({n})" for u, n in sorted(_preview_ufs.items())))
+
+        _btn_baixar = st.button(
+            "⬇️ Baixar do WFS (filtrado por CARs do projeto)",
+            key="btn_baixar_sicar_wfs",
+            type="primary",
+            use_container_width=True,
+        )
+        if _btn_baixar:
+            _prog_dl = st.progress(0.0, text="Iniciando...")
+            def _cb_dl(pct, msg):
+                _prog_dl.progress(float(pct), text=msg)
+            _res = _baixar_sicar_filtrado(df_a_raw, df_r_raw, df_e_raw, progress_cb=_cb_dl)
+            _prog_dl.empty()
+            _erros_dl = _res.pop("_erros", {})
+            _total_feats = sum(_res.values())
+            if _erros_dl:
+                for _uf_e, _msg_e in _erros_dl.items():
+                    st.warning(f"⚠️ {_uf_e}: {_msg_e}")
+            st.success(
+                f"✅ {_total_feats} features baixadas para {len(_res)} UF(s): "
+                + " · ".join(f"{u}={n}" for u, n in _res.items())
+            )
+            st.rerun()
+
+    # Re-listar após possível download
     _arqs = sorted(_SICAR_DIR.glob(_SICAR_GLOB))
     if not _arqs:
         st.warning(
