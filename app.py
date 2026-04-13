@@ -337,6 +337,12 @@ def calcular_kpis(df_a, df_r, df_e):
     kpis["municipios_analise"] = df_a["Município"].nunique() if "Município" in df_a.columns else 0
     kpis["municipios_retif"] = df_r["Município"].nunique() if "Município" in df_r.columns else 0
     kpis["municipios_eleg"] = df_e["Município"].nunique() if "Município" in df_e.columns else 0
+    # União real de municípios abrangidos pelo projeto (todos os escopos)
+    _muns_todos = set()
+    for _df_m, _col_m in [(df_a, "Município"), (df_r, "Município"), (df_e, "Município")]:
+        if _col_m in _df_m.columns:
+            _muns_todos |= set(_df_m[_col_m].dropna().unique())
+    kpis["municipios_total"] = len(_muns_todos)
     kpis["tecnicos"] = df_a["Técnico Vinculado"].nunique() if "Técnico Vinculado" in df_a.columns else 0
     kpis["ufs_eleg"] = df_e["UF"].nunique() if "UF" in df_e.columns else 0
 
@@ -442,7 +448,8 @@ def render_estrategico(df_a, df_r, df_e, kpis):
               f"{fmt_int(kpis['cars_retif'])} CARs distintos")
     a4.metric("Elegibilidade", fmt_int(kpis['registros_eleg']),
               f"{fmt_int(kpis['ufs_eleg'])} UFs")
-    a5.metric("Municípios", fmt_int(kpis['municipios_analise']))
+    a5.metric("Municípios", fmt_int(kpis['municipios_total']),
+              f"{fmt_int(kpis['municipios_analise'])} só análise")
 
 
     st.divider()
