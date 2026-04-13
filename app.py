@@ -201,7 +201,6 @@ def normalizar_condicao(val):
     return "Outros"
 
 
-@st.cache_data
 def carregar_e_limpar(file_bytes, nome_arquivo):
     """Carrega xlsx e normaliza as 3 abas."""
     xls = pd.ExcelFile(io.BytesIO(file_bytes))
@@ -2736,6 +2735,10 @@ def render_preparar_dados(df_a_raw, df_r_raw, df_e_raw):
     if arq_principal:
         with st.spinner("Carregando e normalizando dados..."):
             _bytes = arq_principal.read()
+            # Limpar dados derivados do arquivo anterior
+            for _k in ["df_r_enriquecido", "df_consol_sicar_local", "df_add_retif_bytes",
+                        "retif_preview", "df_consol_wfs", "df_consol_wfs_erros"]:
+                st.session_state.pop(_k, None)
             _dfa, _dfr, _dfe = carregar_e_limpar(_bytes, arq_principal.name)
         st.session_state["dados_principais"] = (_dfa, _dfr, _dfe)
         st.session_state["arquivo_nome"] = arq_principal.name
