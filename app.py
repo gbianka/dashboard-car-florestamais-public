@@ -657,14 +657,17 @@ def render_estrategico(df_a, df_r, df_e, kpis):
             _df_all = pd.concat(_partes, ignore_index=True)
             _df_all["Escopo"] = _df_all["CAR"].apply(_esc)
 
-            # UF por município (preferência: df_e)
-            _uf_map = {}
-            if "UF" in df_e.columns and "Município" in df_e.columns:
-                _uf_map = df_e.dropna(subset=["Município", "UF"]) \
-                              .drop_duplicates("Município") \
-                              .set_index("Município")["UF"].to_dict()
+            # UF extraída direto do número do CAR (ex: "AM-1300060-..." → "AM")
+            _df_all["UF"] = _df_all["CAR"].astype(str).str.split("-").str[0].str.strip()
 
             # Agregar: registros totais + CARs únicos por Município × Escopo
+            # UF: pegar a moda por município (deve ser única, mas garante robustez)
+            _uf_por_mun = (
+                _df_all.groupby("Município")["UF"]
+                .agg(lambda s: s.mode().iloc[0] if not s.mode().empty else "—")
+                .to_dict()
+            )
+
             _grp = (
                 _df_all
                 .groupby(["Município", "Escopo"], sort=False)["CAR"]
@@ -682,7 +685,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
                 .reset_index()
             )
             _pivot.columns.name = None
-            _pivot["UF"] = _pivot["Município"].map(_uf_map).fillna("—")
+            _pivot["UF"] = _pivot["Município"].map(_uf_por_mun).fillna("—")
 
             # Ordem fixa das colunas de escopo
             _ORDEM_ESC = [
