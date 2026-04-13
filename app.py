@@ -492,8 +492,13 @@ def render_estrategico(df_a, df_r, df_e, kpis):
         )
         _col_cond = "Condição_norm" if _visao_cond == "Normalizada" else "Condição final do cadastro"
         if _col_cond in df_a.columns:
-            cond = df_a[_col_cond].value_counts()
-            _titulo_grafico("Condição Final do Cadastro", int(cond.sum()), len(df_a), "####")
+            # Apenas último ciclo por CAR (condição final real)
+            if "Ciclo de análise" in df_a.columns and "Nº DO CAR" in df_a.columns:
+                _df_uc = df_a.sort_values(["Nº DO CAR", "Ciclo de análise"]).drop_duplicates(subset="Nº DO CAR", keep="last")
+            else:
+                _df_uc = df_a.drop_duplicates(subset="Nº DO CAR", keep="last") if "Nº DO CAR" in df_a.columns else df_a
+            cond = _df_uc[_col_cond].value_counts()
+            _titulo_grafico("Condição Final (CARs únicos)", int(cond.sum()), kpis["cars_analise"], "####")
             cores_cond = {
                 "Com pendências": COR["vermelho"], "Em conformidade": COR["verde_claro"],
                 "Aguard. regularização": COR["amarelo"], "Conformidade (CRA)": COR["verde_escuro"],
