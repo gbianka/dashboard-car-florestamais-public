@@ -378,9 +378,17 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     """Renderiza o painel estratégico (visão executiva)."""
 
     # ── Métricas de destaque ──
-    st.markdown("### 📊 Indicadores-Chave do Projeto")
+    _t1, _t2 = st.columns([12, 1])
+    _t1.markdown("### 📊 Indicadores-Chave do Projeto")
+    with _t2.popover("❓"):
+        st.markdown(
+            "Os **CARs distintos por escopo** não somam ao total "
+            "porque muitos CARs aparecem em mais de um escopo "
+            "(ex: Análise + Retificação).\n\n"
+            "O **total de CARs distintos** é a **união** dos 3 conjuntos, "
+            "contando cada CAR apenas uma vez."
+        )
     # ── Linha 1: Visão Geral ──
-    st.caption("Visão Geral")
     a1, a2, a3, a4, a5 = st.columns(5)
     a1.metric("Atuação do Projeto", fmt_int(kpis['registros_analise'] + kpis['registros_retif'] + kpis['registros_eleg']),
               f"{fmt_int(kpis['total_distintos'])} CARs distintos")
