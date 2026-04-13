@@ -413,8 +413,8 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     a3.metric("Retificação", fmt_int(kpis['registros_retif']),
               f"{fmt_int(kpis['cars_retif'])} CARs distintos")
     a4.metric("Elegibilidade", fmt_int(kpis['registros_eleg']),
-              f"{fmt_int(kpis['cars_eleg'])} CARs distintos")
-    a5.metric("Municípios", fmt_int(kpis['municipios_analise']), f"{fmt_int(kpis['ufs_eleg'])} UFs")
+              f"{fmt_int(kpis['ufs_eleg'])} UFs")
+    a5.metric("Municípios", fmt_int(kpis['municipios_analise']))
 
 
     st.divider()
@@ -517,7 +517,7 @@ def render_estrategico(df_a, df_r, df_e, kpis):
     with col_b:
         if "Elegibilidade" in df_e.columns:
             eleg = df_e["Elegibilidade"].value_counts()
-            _titulo_grafico("Elegibilidade para PRA", int(eleg.sum()), len(df_e), "####")
+            _titulo_grafico("Elegibilidade para PSA", int(eleg.sum()), len(df_e), "####")
             cores_eleg = {"Inelegível": COR["vermelho"], "Fase 1": COR["verde_claro"], "Fase 2": COR["verde_escuro"]}
             fig_eleg = px.pie(
                 values=eleg.values, names=eleg.index, hole=0.45,
@@ -681,7 +681,7 @@ def render_tatico(df_a, df_r, df_e, kpis):
     """Renderiza o painel tático (visão operacional detalhada)."""
 
     tab_analise, tab_retif, tab_eleg, tab_gargalos = st.tabs([
-        "🔍 Análise de CAR", "🔧 Retificação", "✅ Elegibilidade PRA", "⚠️ Gargalos"
+        "🔍 Análise de CAR", "🔧 Retificação", "✅ Elegibilidade PSA", "⚠️ Gargalos"
     ])
 
     # ────────────────────────────────────────────────────────
@@ -926,14 +926,14 @@ def render_tatico(df_a, df_r, df_e, kpis):
     # TAB: ELEGIBILIDADE PRA
     # ────────────────────────────────────────────────────────
     with tab_eleg:
-        st.markdown("### Elegibilidade para PRA")
+        st.markdown("### Elegibilidade para PSA")
         total_e = len(df_e)
 
         e1, e2, e3, e4 = st.columns(4)
         e1.metric("Total de Elegibilidades", fmt_int(kpis['registros_eleg']))
         e2.metric("CARs Únicos", fmt_int(kpis['cars_eleg']))
         e3.metric("UFs", fmt_int(kpis['ufs_eleg']))
-        e4.metric("Elegibilidade PRA", fmt_pct(kpis['pct_elegivel']),
+        e4.metric("Elegibilidade PSA", fmt_pct(kpis['pct_elegivel']),
                   f"{fmt_int(kpis['n_fase1'] + kpis['n_fase2'])} elegíveis")
 
         st.divider()
@@ -2122,7 +2122,7 @@ def main():
         # Elegibilidade
         if "Elegibilidade" in df_e_raw.columns:
             eleg_disp = sorted(df_e_raw["Elegibilidade"].dropna().unique())
-            filtros["elegibilidade"] = st.multiselect("Elegibilidade PRA", eleg_disp, placeholder="Selecione...")
+            filtros["elegibilidade"] = st.multiselect("Elegibilidade PSA", eleg_disp, placeholder="Selecione...")
 
         # UF
         if "UF" in df_e_raw.columns:
