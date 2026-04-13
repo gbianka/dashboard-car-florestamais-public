@@ -1845,7 +1845,10 @@ def construir_df_consolidado(df_a, df_r, df_e):
     if col_r in dfr.columns and col_r != col_unif:
         dfr = dfr.rename(columns={col_r: col_unif})
 
-    # Coluna de Origem
+    # Coluna de Origem (remover se já existir antes de inserir)
+    for _df_ins, _label in [(dfa, "Análise"), (dfr, "Retificação"), (dfe, "Elegibilidade")]:
+        if "Origem" in _df_ins.columns:
+            _df_ins.drop(columns=["Origem"], inplace=True)
     dfa.insert(1, "Origem", "Análise")
     dfr.insert(1, "Origem", "Retificação")
     dfe.insert(1, "Origem", "Elegibilidade")
@@ -1858,7 +1861,8 @@ def construir_df_consolidado(df_a, df_r, df_e):
     cars_r = _cars_validos(df_r[col_r]) if col_r in df_r.columns else set()
     cars_e = _cars_validos(df_e[col_e]) if col_e in df_e.columns else set()
 
-    # Inserir Escopo e Último Ciclo
+    # Inserir Escopo e Último Ciclo (remover se já existirem)
+    df_consol = df_consol.drop(columns=[c for c in ["Escopo", "Último Ciclo"] if c in df_consol.columns])
     df_consol.insert(2, "Escopo", df_consol[col_unif].apply(
         lambda x: _classificar_imovel(str(x), cars_a, cars_r, cars_e)
     ))
