@@ -1868,6 +1868,128 @@ def construir_df_consolidado(df_a, df_r, df_e):
 
     return df_consol
 
+# ════════════════════════════════════════════════════════════════
+# §W  MÓDULO WFS — ENRIQUECIMENTO COM SICAR
+# ════════════════════════════════════════════════════════════════
+
+import requests as _requests
+import json as _json
+from urllib.parse import quote as _url_quote
+
+_WFS_BASE = (
+    "https://geoserver.car.gov.br/geoserver/sicar/ows"
+    "?service=WFS&version=1.0.0&request=GetFeature"
+    "&typeName=sicar:sicar_imoveis_{uf}"
+    "&outputFormat=application%2Fjson"
+    "&CQL_FILTER={cql}"
+)
+_WFS_CHUNK_SIZE = 50  # CARs por requisição (evita URL muito longa)
+
+
+def _wfs_fetch_chunk(uf_lower: str, cars: list) -> list:
+    """Busca um chunk de CARs no WFS SICAR. Retorna lista de features GeoJSON."""
+    cars_str = "','".join(str(c) for c in cars)
+    cql = _url_quote(f"cod_imovel IN ('{cars_str}')")
+    url = _WFS_BASE.format(uf=uf_lower, cql=cql)
+    try:
+        resp = _requests.get(url, timeout=60)
+        resp.raise_for_status()
+        return resp.json().get("features", [])
+    except Exception:
+        return []
+
+
+def buscar_wfs_sicar(df_consol: pd.DataFrame, progress_cb=None) -> tuple:
+    """
+    Enriquece o DataFrame consolidado com dados do WFS SICAR.
+
+    Para cada UF presente nos CARs, consulta sicar_imoveis_[uf] e faz
+    merge pelo cod_imovel. Todas as colunas WFS ganham sufixo _wfs;
+    a geometria GeoJSON fica em geometry_wfs.
+
+    Returns:
+        (df_enriquecido, erros_dict)
+    """
+    col_car = "Nº DO CAR"
+    if col_car not in df_consol.columns:
+        return df_consol, {}
+
+    # Agrupar CARs por UF (extraído do prefixo do código)
+    cars_por_uf = {}
+    for car in df_consol[col_car].dropna().unique():
+        partes = str(car).split("-")
+        if len(partes) >= 2:
+            uf = partes[0].strip().upper()
+            cars_por_uf.setdefault(uf, []).append(car)
+
+    all_features = []
+    erros = {}
+    ufs = list(cars_por_uf.keys())
+
+    for i, uf in enumerate(ufs):
+        cars = cars_por_uf[uf]
+        uf_lower = uf.lower()
+        chunks = [cars[j:j + _WFS_CHUNK_SIZE] for j in range(0, len(cars), _WFS_CHUNK_SIZE)]
+
+        uf_features = []
+        for chunk in chunks:
+            feats = _wfs_fetch_chunk(uf_lower, chunk)
+            uf_features.extend(feats)
+
+        if not uf_features:
+            erros[uf] = "Sem retorno do WFS (UF indisponível ou CARs não encontrados)"
+        all_features.extend(uf_features)
+
+        if progress_cb:
+            progress_cb((i + 1) / len(ufs), f"{uf} — {len(uf_features)} feições ({i+1}/{len(ufs)})")
+
+    if not all_features:
+        return df_consol, erros
+
+    # Construir DataFrame WFS (propriedades + geometria)
+    rows = []
+    for feat in all_features:
+        props = dict(feat.get("properties") or {})
+        geom = feat.get("geometry")
+        props["geometry_wfs"] = _json.dumps(geom, ensure_ascii=False) if geom else None
+        rows.append(props)
+
+    df_wfs = pd.DataFrame(rows)
+
+    # Identificar campo-chave do CAR no WFS
+    _candidatos_chave = ("cod_imovel", "cod_car", "num_car", "car")
+    col_chave_wfs = next(
+        (c for c in df_wfs.columns if c.lower() in _candidatos_chave),
+        None,
+    )
+    if col_chave_wfs is None:
+        erros["_geral"] = f"Campo-chave do CAR não encontrado no WFS. Colunas: {list(df_wfs.columns)}"
+        return df_consol, erros
+
+    # Renomear colunas: sufixo _wfs (geometry_wfs já tem sufixo)
+    rename = {c: (c if c == "geometry_wfs" else f"{c}_wfs") for c in df_wfs.columns}
+    df_wfs = df_wfs.rename(columns=rename)
+    col_chave_renamed = rename[col_chave_wfs]
+
+    # Deduplicar por chave WFS (mesmo CAR pode ter múltiplas feições)
+    df_wfs = df_wfs.drop_duplicates(subset=[col_chave_renamed], keep="first")
+
+    # Merge left: todos os registros do consolidado, enriquecidos quando houver match
+    df_out = df_consol.merge(
+        df_wfs,
+        left_on=col_car,
+        right_on=col_chave_renamed,
+        how="left",
+    )
+
+    # Remover coluna de chave duplicada do WFS (se nome diferente)
+    if col_chave_renamed in df_out.columns and col_chave_renamed != col_car:
+        df_out = df_out.drop(columns=[col_chave_renamed])
+
+    return df_out, erros
+
+
+
 def render_cars(df_a, df_r, df_e):
     """§C — Visão consolidada de CARs únicos com escopo e condição final."""
 
@@ -1998,6 +2120,97 @@ def render_cars(df_a, df_r, df_e):
             key="dl_consolidado",
         )
 
+    # ── Enriquecimento WFS SICAR ──
+    st.markdown("---")
+    st.markdown("#### 🌐 Enriquecimento com WFS SICAR")
+    st.caption(
+        "Consulta o GeoServer do CAR para cada UF presente nos dados do projeto. "
+        "Adiciona todas as colunas do WFS com sufixo `_wfs` e a geometria GeoJSON em `geometry_wfs`."
+    )
+
+    _wfs_key = "df_consol_wfs"
+    _wfs_erros_key = "df_consol_wfs_erros"
+
+    col_wbtn, col_winfo = st.columns([1, 2])
+    with col_wbtn:
+        _btn_wfs = st.button("🌐 Buscar dados WFS", key="btn_wfs", use_container_width=True)
+    with col_winfo:
+        if _wfs_key in st.session_state:
+            _df_wfs_atual = st.session_state[_wfs_key]
+            _n_cols_wfs = len([c for c in _df_wfs_atual.columns if c.endswith("_wfs")])
+            st.success(f"✅ WFS carregado — {fmt_int(_n_cols_wfs)} colunas adicionadas")
+        else:
+            st.info("Clique para buscar dados do SICAR WFS para as UFs do projeto.")
+
+    if _btn_wfs:
+        _prog_wfs = st.progress(0.0, text="Iniciando consulta WFS...")
+        def _wfs_cb(pct, msg):
+            _prog_wfs.progress(float(pct), text=msg)
+        _df_enriquecido, _erros = buscar_wfs_sicar(df_consol, progress_cb=_wfs_cb)
+        _prog_wfs.empty()
+        st.session_state[_wfs_key] = _df_enriquecido
+        st.session_state[_wfs_erros_key] = _erros
+        if _erros:
+            for uf_err, msg_err in _erros.items():
+                st.warning(f"⚠️ {uf_err}: {msg_err}")
+        st.rerun()
+
+    if _wfs_key in st.session_state:
+        _df_wfs = st.session_state[_wfs_key]
+        _cols_wfs = [c for c in _df_wfs.columns if c.endswith("_wfs") and c != "geometry_wfs"]
+        _tem_geom = "geometry_wfs" in _df_wfs.columns
+
+        # Preview das colunas disponíveis
+        with st.expander(f"📋 Colunas WFS disponíveis ({len(_cols_wfs)} + geometria)", expanded=False):
+            st.write(_cols_wfs + (["geometry_wfs"] if _tem_geom else []))
+
+        # Seletor de colunas para visualização
+        _cols_base = [c for c in ["Nº DO CAR", "Origem", "Escopo", "Município"] if c in _df_wfs.columns]
+        _cols_default = _cols_base + _cols_wfs[:8]
+        _sel_wfs = st.multiselect(
+            "Colunas para exibir:", _cols_base + _cols_wfs,
+            default=_cols_default, key="wfs_cols_sel"
+        )
+        if _sel_wfs:
+            st.dataframe(
+                _df_wfs[_sel_wfs].drop_duplicates(subset=["Nº DO CAR"] if "Nº DO CAR" in _sel_wfs else None).head(300),
+                use_container_width=True,
+                height=380,
+            )
+
+        # Download — xlsx (sem geometry_wfs) e GeoJSON
+        dl_wfs1, dl_wfs2 = st.columns(2)
+        with dl_wfs1:
+            _buf_wfs = io.BytesIO()
+            _cols_xlsx = [c for c in _df_wfs.columns if c != "geometry_wfs"]
+            with pd.ExcelWriter(_buf_wfs, engine="xlsxwriter") as _wrt:
+                _df_wfs[_cols_xlsx].to_excel(_wrt, sheet_name="Consolidado+WFS", index=False)
+            st.download_button(
+                "⬇️ Consolidado + WFS (.xlsx)",
+                data=_buf_wfs.getvalue(),
+                file_name=f"consolidado_wfs_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.document",
+                key="dl_wfs_xlsx",
+            )
+        with dl_wfs2:
+            if _tem_geom:
+                # Montar GeoJSON com propriedades do consolidado
+                _features_geojson = []
+                for _, row in _df_wfs.dropna(subset=["geometry_wfs"]).iterrows():
+                    try:
+                        geom = _json.loads(row["geometry_wfs"])
+                    except Exception:
+                        continue
+                    props = {c: str(row[c]) for c in _cols_base if c in row and pd.notna(row[c])}
+                    _features_geojson.append({"type": "Feature", "geometry": geom, "properties": props})
+                _geojson_str = _json.dumps({"type": "FeatureCollection", "features": _features_geojson}, ensure_ascii=False)
+                st.download_button(
+                    "⬇️ Geometrias (.geojson)",
+                    data=_geojson_str.encode("utf-8"),
+                    file_name=f"geometrias_projeto_{datetime.now().strftime('%Y%m%d_%H%M')}.geojson",
+                    mime="application/geo+json",
+                    key="dl_wfs_geojson",
+                )
 
 # ════════════════════════════════════════════════════════════════
 # §D  DETALHE DO CAR — FICHA COMPLETA
